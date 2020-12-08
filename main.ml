@@ -1,5 +1,7 @@
 module Libraries = Set.Make(String)
 
+module Packages = Map.Make(String)
+
 let () =
   Findlib.init ()
 
@@ -35,7 +37,22 @@ let to_opam lib =
   | dir -> Some (Filename.basename dir)
   | exception Fl_package_base.No_such_package _ -> None
 
-let is_build_dep dep opam_deps = List.mem_assoc dep opam_deps
+(* with-test dependencies are not available in the plain build environment. *)
+let build_env x =
+  match OpamVariable.Full.to_string x with
+  | "with-test" -> Some (OpamTypes.B false)
+  | _ -> None
+
+let available_in_build_env =
+  let open OpamTypes in function
+  | Filter f -> OpamFilter.eval_to_bool ~default:true build_env f
+  | Constraint _ -> true
+
+let classify =
+  List.fold_left (fun acc (name, formula) ->
+      let ty = if OpamFormula.eval available_in_build_env formula then `Build else `Test in
+      Packages.add name ty acc
+    ) Packages.empty
 
 let scan ~dir =
   Sys.chdir dir;
@@ -48,17 +65,30 @@ let scan ~dir =
   packages |> List.iter (fun pkg ->
       let path = pkg ^ ".opam" in
       let build = get_libraries ~pkg ~target:"@install" |> Libraries.filter_map to_opam in
-      (* let test = get_libraries ~pkg ~target:"@runtest" in *)
+      let test = get_libraries ~pkg ~target:"@runtest" |> Libraries.filter_map to_opam in
       let opam = OpamFile.OPAM.read (OpamFile.make (OpamFilename.raw path)) in
-      let opam_deps = OpamFile.OPAM.depends opam |> flatten in
-      let build_missing = build |> Libraries.filter (fun dune_build_dep -> not (is_build_dep dune_build_dep opam_deps)) in
-      if Libraries.is_empty build_missing
-      then Fmt.pr "%a.opam: %a@."
-          Fmt.(styled `Bold string) pkg
-          Fmt.(styled `Green string) "OK"
-      else Fmt.pr "@[<v2>%a.opam is missing dependencies:@,%a@]@."
-          Fmt.(styled `Bold string) pkg
-          Fmt.(seq ~sep:cut (quote string)) (Libraries.to_seq build_missing)
+      let opam_deps = OpamFile.OPAM.depends opam |> flatten |> classify in
+      Fmt.pr "@[<v2>%a.opam:" Fmt.(styled `Bold string) pkg;
+      let problems = ref 0 in
+      let problem fmt =
+        incr problems;
+        Fmt.pr ("@," ^^ fmt)
+      in
+      build |> Libraries.iter (fun dep ->
+          match Packages.find_opt dep opam_deps with
+          | Some `Build -> ()
+          | Some `Test -> problem "%S (remove {with-test})" dep
+          | None -> problem "%S" dep
+        );
+      Libraries.diff test build |> Libraries.iter (fun dep ->
+          match Packages.find_opt dep opam_deps with
+          | Some `Test -> ()
+          | Some `Build -> problem "%S {with-test} (missing {with-test} annotation)" dep
+          | None -> problem "%S {with-test}" dep
+        );
+      if !problems = 0 then
+        Fmt.pr "%a" Fmt.(styled `Green string) "OK";
+      Fmt.pr "@]@.";
     )
 
 let () =
