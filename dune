@@ -1,0 +1,4 @@
+(executable
+ (public_name dune-opam-lint)
+ (name main)
+ (libraries fmt fmt.tty bos opam-format findlib))
