@@ -12,6 +12,7 @@
  (name dune-opam-lint)
  (synopsis "Ensure dune and opam dependencies are consistent")
  (depends
+  (ocaml (>= 4.11.0))
   ocamlfind
   bos
   fmt
