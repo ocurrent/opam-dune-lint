@@ -7,7 +7,7 @@ homepage: "https://github.com/talex5/dune-opam-lint"
 bug-reports: "https://github.com/talex5/dune-opam-lint/issues"
 depends: [
   "dune" {>= "2.7"}
-  "findlib"
+  "ocamlfind"
   "bos"
   "fmt"
   "opam-format"

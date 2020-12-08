@@ -33,9 +33,10 @@ let rec flatten : _ OpamFormula.formula -> _ list = function
 
 let to_opam lib =
   let lib = Astring.String.take ~sat:((<>) '.') lib in
-  match Findlib.package_directory lib with
-  | dir -> Some (Filename.basename dir)
-  | exception Fl_package_base.No_such_package _ -> None
+  if lib = "findlib" then Some "ocamlfind"
+  else match Findlib.package_directory lib with
+    | dir -> Some (Filename.basename dir)
+    | exception Fl_package_base.No_such_package _ -> None
 
 (* with-test dependencies are not available in the plain build environment. *)
 let build_env x =

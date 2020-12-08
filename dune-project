@@ -12,7 +12,7 @@
  (name dune-opam-lint)
  (synopsis "Ensure dune and opam dependencies are consistent")
  (depends
-  findlib
+  ocamlfind
   bos
   fmt
   opam-format))
