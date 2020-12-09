@@ -91,7 +91,7 @@ let scan ~dir =
   let opam_files = get_opam_files () in
   if Paths.is_empty opam_files then failwith "No *.opam files found!";
   let _ : _ Paths.t = Paths.merge check_identical old_opam_files opam_files in
-  opam_files |> Paths.iter (fun path opam ->
+  opam_files |> Paths.filter_map (fun path opam ->
       let pkg = Filename.chop_suffix path ".opam" in
       let build = get_libraries ~pkg ~target:"@install" |> to_opam_set in
       let test = get_libraries ~pkg ~target:"@runtest" |> to_opam_set in
@@ -119,7 +119,12 @@ let scan ~dir =
       if !problems = 0 then
         Fmt.pr " %a" Fmt.(styled `Green string) "OK";
       Fmt.pr "@]@.";
+      if !problems = 0 then None
+      else Some (!problems)
     )
+  |> fun report ->
+  if Paths.is_empty report then ()
+  else exit 1
 
 let () =
   Fmt_tty.setup_std_outputs ();
