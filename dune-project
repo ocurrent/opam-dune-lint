@@ -16,4 +16,5 @@
   ocamlfind
   bos
   fmt
+  opam-state
   opam-format))

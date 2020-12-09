@@ -5,6 +5,8 @@ module Packages = Map.Make(String)
 let () =
   Findlib.init ()
 
+let index = Index.create ()
+
 (* TODO: select machine readable output *)
 let dune_external_lib_deps ~pkg ~target =
   Bos.Cmd.(v "dune" % "external-lib-deps" % "-p" % pkg % target)
@@ -33,10 +35,14 @@ let rec flatten : _ OpamFormula.formula -> _ list = function
 
 let to_opam lib =
   let lib = Astring.String.take ~sat:((<>) '.') lib in
-  if lib = "findlib" then Some "ocamlfind"
-  else match Findlib.package_directory lib with
-    | dir -> Some (Filename.basename dir)
-    | exception Fl_package_base.No_such_package _ -> None
+  match Index.Owner.find_opt lib index with
+  | Some pkg -> pkg
+  | None ->
+    Fmt.pr "WARNING: can't find opam package providing %S!" lib;
+    OpamPackage.create (OpamPackage.Name.of_string lib) (OpamPackage.Version.of_string "0")
+
+let to_opam_set libs =
+  Libraries.fold (fun lib acc -> OpamPackage.Set.add (to_opam lib) acc) libs OpamPackage.Set.empty
 
 (* with-test dependencies are not available in the plain build environment. *)
 let build_env x =
@@ -65,8 +71,8 @@ let scan ~dir =
   if packages = [] then failwith "No *.opam files found!";
   packages |> List.iter (fun pkg ->
       let path = pkg ^ ".opam" in
-      let build = get_libraries ~pkg ~target:"@install" |> Libraries.filter_map to_opam in
-      let test = get_libraries ~pkg ~target:"@runtest" |> Libraries.filter_map to_opam in
+      let build = get_libraries ~pkg ~target:"@install" |> to_opam_set in
+      let test = get_libraries ~pkg ~target:"@runtest" |> to_opam_set in
       let opam = OpamFile.OPAM.read (OpamFile.make (OpamFilename.raw path)) in
       let opam_deps = OpamFile.OPAM.depends opam |> flatten |> classify in
       Fmt.pr "@[<v2>%a.opam:" Fmt.(styled `Bold string) pkg;
@@ -75,17 +81,19 @@ let scan ~dir =
         incr problems;
         Fmt.pr ("@," ^^ fmt)
       in
-      build |> Libraries.iter (fun dep ->
-          match Packages.find_opt dep opam_deps with
+      build |> OpamPackage.Set.iter (fun dep ->
+          let dep_name = OpamPackage.name_to_string dep in
+          match Packages.find_opt dep_name opam_deps with
           | Some `Build -> ()
-          | Some `Test -> problem "%S (remove {with-test})" dep
-          | None -> problem "%S" dep
+          | Some `Test -> problem "%S (remove {with-test})" dep_name
+          | None -> problem "%S {>= %s}" dep_name (OpamPackage.version_to_string dep)
         );
-      Libraries.diff test build |> Libraries.iter (fun dep ->
-          match Packages.find_opt dep opam_deps with
+      OpamPackage.Set.diff test build |> OpamPackage.Set.iter (fun dep ->
+          let dep_name = OpamPackage.name_to_string dep in
+          match Packages.find_opt dep_name opam_deps with
           | Some `Test -> ()
-          | Some `Build -> problem "%S {with-test} (missing {with-test} annotation)" dep
-          | None -> problem "%S {with-test}" dep
+          | Some `Build -> problem "%S {with-test} (missing {with-test} annotation)" dep_name
+          | None -> problem "%S {with-test & >= %s}" dep_name (OpamPackage.version_to_string dep)
         );
       if !problems = 0 then
         Fmt.pr "%a" Fmt.(styled `Green string) "OK";

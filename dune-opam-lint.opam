@@ -11,6 +11,7 @@ depends: [
   "ocamlfind"
   "bos"
   "fmt"
+  "opam-state"
   "opam-format"
   "odoc" {with-doc}
 ]
