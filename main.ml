@@ -1,27 +1,32 @@
 module Libraries = Set.Make(String)
 module Paths = Map.Make(String)
 
+let or_die = function
+  | Ok x -> x
+  | Error (`Msg m) -> failwith m
+
 let () =
   Findlib.init ()
 
 let index = Index.create ()
 
 (* todo: we should probably select machine readable output.
-   But passing --sexp just tells you to use unstable mode anyway. *)
-let dune_external_lib_deps ~pkg ~target =
-  Bos.Cmd.(v "dune" % "external-lib-deps" % "-p" % pkg % target)
+   But passing --sexp just tells you to use unstable mode anyway.
+   We use [tmp_dir] so that "--only-packages" doesn't invalidate the existing build. *)
+let dune_external_lib_deps ~tmp_dir ~pkg ~target =
+  let tmp_dir = Fpath.to_string tmp_dir in
+  Bos.Cmd.(v "dune" % "external-lib-deps" % "--only-packages" % pkg % "--build-dir" % tmp_dir % target)
 
 let dune_build_install =
   Bos.Cmd.(v "dune" % "build" %% (on (Unix.(isatty stderr)) (v "--display=progress")) % "@install")
 
-let or_die = function
-  | Ok x -> x
-  | Error (`Msg m) -> failwith m
-
 (* Get the ocamlfind dependencies of [pkg]. *)
 let get_libraries ~pkg ~target =
-  Bos.OS.Cmd.run_out (dune_external_lib_deps ~pkg ~target)
-  |> Bos.OS.Cmd.to_lines
+  Bos.OS.Dir.with_tmp "dune-opam-lint-%s" (fun tmp_dir () ->
+      Bos.OS.Cmd.run_out (dune_external_lib_deps ~tmp_dir ~pkg ~target)
+      |> Bos.OS.Cmd.to_lines
+      |> or_die
+    ) ()
   |> or_die
   |> List.filter_map (fun line ->
       match Astring.String.cut ~sep:" " line with
