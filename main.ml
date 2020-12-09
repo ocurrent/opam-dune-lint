@@ -35,13 +35,6 @@ let get_libraries ~pkg ~target =
     )
   |> Libraries.of_list
 
-let rec flatten : _ OpamFormula.formula -> _ list = function
-  | Empty -> []
-  | Atom (name, f) -> [(OpamPackage.Name.to_string name, f)]
-  | Block x -> flatten x
-  | And (x, y) -> flatten x @ flatten y
-  | Or (x, y) -> flatten x @ flatten y
-
 let to_opam lib =
   let lib = Astring.String.take ~sat:((<>) '.') lib in
   match Index.Owner.find_opt lib index with
@@ -52,23 +45,6 @@ let to_opam lib =
 
 let to_opam_set libs =
   Libraries.fold (fun lib acc -> OpamPackage.Set.add (to_opam lib) acc) libs OpamPackage.Set.empty
-
-(* with-test dependencies are not available in the plain build environment. *)
-let build_env x =
-  match OpamVariable.Full.to_string x with
-  | "with-test" -> Some (OpamTypes.B false)
-  | _ -> None
-
-let available_in_build_env =
-  let open OpamTypes in function
-  | Filter f -> OpamFilter.eval_to_bool ~default:true build_env f
-  | Constraint _ -> true
-
-let classify =
-  List.fold_left (fun acc (name, formula) ->
-      let ty = if OpamFormula.eval available_in_build_env formula then `Build else `Test in
-      OpamPackage.Name.Map.add (OpamPackage.Name.of_string name) ty acc
-    ) OpamPackage.Name.Map.empty
 
 let get_opam_files () =
   Sys.readdir "."
@@ -96,20 +72,20 @@ let pp_problem f = function
   | `Add_build_dep dep -> Fmt.pf f "%a {>= %s}" pp_name (OpamPackage.name dep) (OpamPackage.version_to_string dep)
   | `Add_test_dep dep -> Fmt.pf f "%a {with-test & >= %s}" pp_name (OpamPackage.name dep) (OpamPackage.version_to_string dep)
 
-let pp_report f = function
+let pp_problems f = function
   | [] -> Fmt.pf f " %a" Fmt.(styled `Green string) "OK"
   | problems -> Fmt.pf f "@,%a" Fmt.(list ~sep:cut pp_problem) problems
 
-let display path report =
+let display path (_opam, problems) =
   let pkg = Filename.chop_suffix path ".opam" in
   Fmt.pr "@[<v2>%a.opam:%a@]@."
     Fmt.(styled `Bold string) pkg
-    pp_report report
+    pp_problems problems
 
 let generate_report ~opam pkg =
   let build = get_libraries ~pkg ~target:"@install" |> to_opam_set in
   let test = get_libraries ~pkg ~target:"@runtest" |> to_opam_set in
-  let opam_deps = OpamFile.OPAM.depends opam |> flatten |> classify in
+  let opam_deps = OpamFile.OPAM.depends opam |> Formula.classify in
   let build_problems =
     OpamPackage.Set.to_seq build
     |> List.of_seq
@@ -135,6 +111,15 @@ let generate_report ~opam pkg =
   in
   build_problems @ test_problems
 
+let update_opam_file path = function
+  | (_, []) -> ()
+  | (opam, changes) ->
+    let depends = List.fold_left Formula.update_depends opam.OpamFile.OPAM.depends changes in
+    let opam = OpamFile.OPAM.with_depends depends opam in
+    let path = OpamFile.make (OpamFilename.raw (path)) in
+    OpamFile.OPAM.write path opam;
+    Fmt.pr "Wrote %S@." (OpamFile.to_string path)
+
 let scan ~dir =
   Sys.chdir dir;
   let old_opam_files = get_opam_files () in
@@ -143,11 +128,12 @@ let scan ~dir =
   if Paths.is_empty opam_files then failwith "No *.opam files found!";
   let _ : _ Paths.t = Paths.merge check_identical old_opam_files opam_files in
   opam_files |> Paths.mapi (fun path opam ->
-      generate_report ~opam (Filename.chop_suffix path ".opam")
+      (opam, generate_report ~opam (Filename.chop_suffix path ".opam"))
     )
   |> fun report ->
   Paths.iter display report;
-  if Paths.exists (fun _ -> function [] -> false | _ -> true) report then exit 1
+  Paths.iter update_opam_file report;
+  if Paths.exists (fun _ -> function (_, []) -> false | _ -> true) report then exit 1
 
 let () =
   Fmt_tty.setup_std_outputs ();
