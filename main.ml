@@ -1,6 +1,5 @@
 module Libraries = Set.Make(String)
-
-module Packages = Map.Make(String)
+module Paths = Map.Make(String)
 
 let () =
   Findlib.init ()
@@ -11,20 +10,24 @@ let index = Index.create ()
 let dune_external_lib_deps ~pkg ~target =
   Bos.Cmd.(v "dune" % "external-lib-deps" % "-p" % pkg % target)
 
+let dune_build_install =
+  Bos.Cmd.(v "dune" % "build" % "@install")
+
+let or_die = function
+  | Ok x -> x
+  | Error (`Msg m) -> failwith m
+
 (* Get the ocamlfind dependencies of [pkg]. *)
 let get_libraries ~pkg ~target =
   Bos.OS.Cmd.run_out (dune_external_lib_deps ~pkg ~target)
   |> Bos.OS.Cmd.to_lines
-  |> function
-  | Error (`Msg m) -> failwith m
-  | Ok lines ->
-    lines
-    |> List.filter_map (fun line ->
-        match Astring.String.cut ~sep:" " line with
-        | Some ("-", lib) -> Some lib
-        | _ -> None
-      )
-    |> Libraries.of_list
+  |> or_die
+  |> List.filter_map (fun line ->
+      match Astring.String.cut ~sep:" " line with
+      | Some ("-", lib) -> Some lib
+      | _ -> None
+    )
+  |> Libraries.of_list
 
 let rec flatten : _ OpamFormula.formula -> _ list = function
   | Empty -> []
@@ -58,22 +61,40 @@ let available_in_build_env =
 let classify =
   List.fold_left (fun acc (name, formula) ->
       let ty = if OpamFormula.eval available_in_build_env formula then `Build else `Test in
-      Packages.add name ty acc
-    ) Packages.empty
+      OpamPackage.Name.Map.add (OpamPackage.Name.of_string name) ty acc
+    ) OpamPackage.Name.Map.empty
+
+let get_opam_files () =
+  Sys.readdir "."
+  |> Array.to_list
+  |> List.filter (fun name -> Filename.check_suffix name ".opam")
+  |> List.fold_left (fun acc path ->
+      let opam = OpamFile.OPAM.read (OpamFile.make (OpamFilename.raw path)) in
+      Paths.add path opam acc
+    ) Paths.empty
+
+let pp_name = Fmt.using OpamPackage.Name.to_string Fmt.(quote string)
+
+let check_identical path a b =
+  match a, b with
+  | Some a, Some b ->
+    if OpamFile.OPAM.effectively_equal a b then None
+    else Fmt.failwith "%S changed after 'dune build @install'!" path
+  | Some _, None -> Fmt.failwith "%S deleted by 'dune build @install'!" path
+  | None, Some _ -> Fmt.failwith "%S was missing" path
+  | None, None -> assert false
 
 let scan ~dir =
   Sys.chdir dir;
-  let packages =
-    Sys.readdir "."
-    |> Array.to_list
-    |> List.filter_map (fun name -> Filename.chop_suffix_opt name ~suffix:".opam")
-  in
-  if packages = [] then failwith "No *.opam files found!";
-  packages |> List.iter (fun pkg ->
-      let path = pkg ^ ".opam" in
+  let old_opam_files = get_opam_files () in
+  Bos.OS.Cmd.run dune_build_install |> or_die;
+  let opam_files = get_opam_files () in
+  if Paths.is_empty opam_files then failwith "No *.opam files found!";
+  let _ : _ Paths.t = Paths.merge check_identical old_opam_files opam_files in
+  opam_files |> Paths.iter (fun path opam ->
+      let pkg = Filename.chop_suffix path ".opam" in
       let build = get_libraries ~pkg ~target:"@install" |> to_opam_set in
       let test = get_libraries ~pkg ~target:"@runtest" |> to_opam_set in
-      let opam = OpamFile.OPAM.read (OpamFile.make (OpamFilename.raw path)) in
       let opam_deps = OpamFile.OPAM.depends opam |> flatten |> classify in
       Fmt.pr "@[<v2>%a.opam:" Fmt.(styled `Bold string) pkg;
       let problems = ref 0 in
@@ -82,27 +103,31 @@ let scan ~dir =
         Fmt.pr ("@," ^^ fmt)
       in
       build |> OpamPackage.Set.iter (fun dep ->
-          let dep_name = OpamPackage.name_to_string dep in
-          match Packages.find_opt dep_name opam_deps with
+          let dep_name = OpamPackage.name dep in
+          match OpamPackage.Name.Map.find_opt dep_name opam_deps with
           | Some `Build -> ()
-          | Some `Test -> problem "%S (remove {with-test})" dep_name
-          | None -> problem "%S {>= %s}" dep_name (OpamPackage.version_to_string dep)
+          | Some `Test -> problem "%a (remove {with-test})" pp_name dep_name
+          | None -> problem "%a {>= %s}" pp_name dep_name (OpamPackage.version_to_string dep)
         );
       OpamPackage.Set.diff test build |> OpamPackage.Set.iter (fun dep ->
-          let dep_name = OpamPackage.name_to_string dep in
-          match Packages.find_opt dep_name opam_deps with
+          let dep_name = OpamPackage.name dep in
+          match OpamPackage.Name.Map.find_opt dep_name opam_deps with
           | Some `Test -> ()
-          | Some `Build -> problem "%S {with-test} (missing {with-test} annotation)" dep_name
-          | None -> problem "%S {with-test & >= %s}" dep_name (OpamPackage.version_to_string dep)
+          | Some `Build -> problem "%a {with-test} (missing {with-test} annotation)" pp_name dep_name
+          | None -> problem "%a {with-test & >= %s}" pp_name dep_name (OpamPackage.version_to_string dep)
         );
       if !problems = 0 then
-        Fmt.pr "%a" Fmt.(styled `Green string) "OK";
+        Fmt.pr " %a" Fmt.(styled `Green string) "OK";
       Fmt.pr "@]@.";
     )
 
 let () =
   Fmt_tty.setup_std_outputs ();
-  match Sys.argv with
-  | [| _prog; dir |] -> scan ~dir
-  | [| _prog |] -> scan ~dir:"."
-  | _ -> failwith "usage: dune-opam-lint DIR"
+  try
+    match Sys.argv with
+    | [| _prog; dir |] -> scan ~dir
+    | [| _prog |] -> scan ~dir:"."
+    | _ -> failwith "usage: dune-opam-lint DIR"
+  with Failure msg ->
+    Fmt.epr "%s@." msg;
+    exit 1
