@@ -90,6 +90,51 @@ let check_identical path a b =
   | None, Some _ -> Fmt.failwith "%S was missing" path
   | None, None -> assert false
 
+let pp_problem f = function
+  | `Remove_with_test name -> Fmt.pf f "%a (remove {with-test})" pp_name name
+  | `Add_with_test name -> Fmt.pf f "%a {with-test} (missing {with-test} annotation)" pp_name name
+  | `Add_build_dep dep -> Fmt.pf f "%a {>= %s}" pp_name (OpamPackage.name dep) (OpamPackage.version_to_string dep)
+  | `Add_test_dep dep -> Fmt.pf f "%a {with-test & >= %s}" pp_name (OpamPackage.name dep) (OpamPackage.version_to_string dep)
+
+let pp_report f = function
+  | [] -> Fmt.pf f " %a" Fmt.(styled `Green string) "OK"
+  | problems -> Fmt.pf f "@,%a" Fmt.(list ~sep:cut pp_problem) problems
+
+let display path report =
+  let pkg = Filename.chop_suffix path ".opam" in
+  Fmt.pr "@[<v2>%a.opam:%a@]@."
+    Fmt.(styled `Bold string) pkg
+    pp_report report
+
+let generate_report ~opam pkg =
+  let build = get_libraries ~pkg ~target:"@install" |> to_opam_set in
+  let test = get_libraries ~pkg ~target:"@runtest" |> to_opam_set in
+  let opam_deps = OpamFile.OPAM.depends opam |> flatten |> classify in
+  let build_problems =
+    OpamPackage.Set.to_seq build
+    |> List.of_seq
+    |> List.concat_map (fun dep ->
+        let dep_name = OpamPackage.name dep in
+        match OpamPackage.Name.Map.find_opt dep_name opam_deps with
+        | Some `Build -> []
+        | Some `Test -> [`Remove_with_test dep_name]
+        | None -> [`Add_build_dep dep]
+      )
+  in
+  let test_problems =
+    OpamPackage.Set.diff test build
+    |> OpamPackage.Set.to_seq
+    |> List.of_seq
+    |> List.concat_map (fun dep ->
+        let dep_name = OpamPackage.name dep in
+        match OpamPackage.Name.Map.find_opt dep_name opam_deps with
+        | Some `Test -> []
+        | Some `Build -> [`Add_with_test dep_name]
+        | None -> [`Add_test_dep dep]
+      )
+  in
+  build_problems @ test_problems
+
 let scan ~dir =
   Sys.chdir dir;
   let old_opam_files = get_opam_files () in
@@ -97,40 +142,12 @@ let scan ~dir =
   let opam_files = get_opam_files () in
   if Paths.is_empty opam_files then failwith "No *.opam files found!";
   let _ : _ Paths.t = Paths.merge check_identical old_opam_files opam_files in
-  opam_files |> Paths.filter_map (fun path opam ->
-      let pkg = Filename.chop_suffix path ".opam" in
-      let build = get_libraries ~pkg ~target:"@install" |> to_opam_set in
-      let test = get_libraries ~pkg ~target:"@runtest" |> to_opam_set in
-      let opam_deps = OpamFile.OPAM.depends opam |> flatten |> classify in
-      Fmt.pr "@[<v2>%a.opam:" Fmt.(styled `Bold string) pkg;
-      let problems = ref 0 in
-      let problem fmt =
-        incr problems;
-        Fmt.pr ("@," ^^ fmt)
-      in
-      build |> OpamPackage.Set.iter (fun dep ->
-          let dep_name = OpamPackage.name dep in
-          match OpamPackage.Name.Map.find_opt dep_name opam_deps with
-          | Some `Build -> ()
-          | Some `Test -> problem "%a (remove {with-test})" pp_name dep_name
-          | None -> problem "%a {>= %s}" pp_name dep_name (OpamPackage.version_to_string dep)
-        );
-      OpamPackage.Set.diff test build |> OpamPackage.Set.iter (fun dep ->
-          let dep_name = OpamPackage.name dep in
-          match OpamPackage.Name.Map.find_opt dep_name opam_deps with
-          | Some `Test -> ()
-          | Some `Build -> problem "%a {with-test} (missing {with-test} annotation)" pp_name dep_name
-          | None -> problem "%a {with-test & >= %s}" pp_name dep_name (OpamPackage.version_to_string dep)
-        );
-      if !problems = 0 then
-        Fmt.pr " %a" Fmt.(styled `Green string) "OK";
-      Fmt.pr "@]@.";
-      if !problems = 0 then None
-      else Some (!problems)
+  opam_files |> Paths.mapi (fun path opam ->
+      generate_report ~opam (Filename.chop_suffix path ".opam")
     )
   |> fun report ->
-  if Paths.is_empty report then ()
-  else exit 1
+  Paths.iter display report;
+  if Paths.exists (fun _ -> function [] -> false | _ -> true) report then exit 1
 
 let () =
   Fmt_tty.setup_std_outputs ();
