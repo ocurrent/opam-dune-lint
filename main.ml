@@ -6,12 +6,13 @@ let () =
 
 let index = Index.create ()
 
-(* TODO: select machine readable output *)
+(* todo: we should probably select machine readable output.
+   But passing --sexp just tells you to use unstable mode anyway. *)
 let dune_external_lib_deps ~pkg ~target =
   Bos.Cmd.(v "dune" % "external-lib-deps" % "-p" % pkg % target)
 
 let dune_build_install =
-  Bos.Cmd.(v "dune" % "build" % "@install")
+  Bos.Cmd.(v "dune" % "build" %% (on (Unix.(isatty stderr)) (v "--display=progress")) % "@install")
 
 let or_die = function
   | Ok x -> x
