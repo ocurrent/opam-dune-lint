@@ -7,6 +7,7 @@ homepage: "https://github.com/talex5/dune-opam-lint"
 bug-reports: "https://github.com/talex5/dune-opam-lint/issues"
 depends: [
   "dune" {>= "2.7"}
+  "dune-private-libs" {>= "2.7.1"}
   "ocaml" {>= "4.11.0"}
   "ocamlfind"
   "bos"

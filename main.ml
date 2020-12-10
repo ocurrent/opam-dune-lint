@@ -1,5 +1,6 @@
+open Types
+
 module Libraries = Set.Make(String)
-module Paths = Map.Make(String)
 
 let or_die = function
   | Ok x -> x
@@ -57,26 +58,18 @@ let get_opam_files () =
       Paths.add path opam acc
     ) Paths.empty
 
-let pp_name = Fmt.using OpamPackage.Name.to_string Fmt.(quote string)
-
-let check_identical path a b =
+let check_identical _path a b =
   match a, b with
   | Some a, Some b ->
     if OpamFile.OPAM.effectively_equal a b then None
-    else Fmt.failwith "%S changed after 'dune build @install'!" path
-  | Some _, None -> Fmt.failwith "%S deleted by 'dune build @install'!" path
-  | None, Some _ -> Fmt.failwith "%S was missing" path
+    else Some "changed"
+  | Some _, None -> Some "deleted"
+  | None, Some _ -> Some "added"
   | None, None -> assert false
-
-let pp_problem f = function
-  | `Remove_with_test name -> Fmt.pf f "%a (remove {with-test})" pp_name name
-  | `Add_with_test name -> Fmt.pf f "%a {with-test} (missing {with-test} annotation)" pp_name name
-  | `Add_build_dep dep -> Fmt.pf f "%a {>= %s}" pp_name (OpamPackage.name dep) (OpamPackage.version_to_string dep)
-  | `Add_test_dep dep -> Fmt.pf f "%a {with-test & >= %s}" pp_name (OpamPackage.name dep) (OpamPackage.version_to_string dep)
 
 let pp_problems f = function
   | [] -> Fmt.pf f " %a" Fmt.(styled `Green string) "OK"
-  | problems -> Fmt.pf f "@,%a" Fmt.(list ~sep:cut pp_problem) problems
+  | problems -> Fmt.pf f " changes needed:@,%a" Fmt.(list ~sep:cut Change.pp) problems
 
 let display path (_opam, problems) =
   let pkg = Filename.chop_suffix path ".opam" in
@@ -128,14 +121,27 @@ let scan ~dir =
   Bos.OS.Cmd.run dune_build_install |> or_die;
   let opam_files = get_opam_files () in
   if Paths.is_empty opam_files then failwith "No *.opam files found!";
-  let _ : _ Paths.t = Paths.merge check_identical old_opam_files opam_files in
+  let stale_files = Paths.merge check_identical old_opam_files opam_files in
+  stale_files |> Paths.iter (fun path msg -> Fmt.pr "%s: %s after 'dune build @install'!@." path msg);
   opam_files |> Paths.mapi (fun path opam ->
       (opam, generate_report ~opam (Filename.chop_suffix path ".opam"))
     )
   |> fun report ->
   Paths.iter display report;
-  Paths.iter update_opam_file report;
-  if Paths.exists (fun _ -> function (_, []) -> false | _ -> true) report then exit 1
+  let have_changes = Paths.exists (fun _ -> function (_, []) -> false | _ -> true) report in
+  if have_changes then (
+    let project = Dune_project.parse () in
+    if Dune_project.generate_opam_enabled project then (
+      project
+      |> Dune_project.update report
+      |> Dune_project.write_project_file;
+      Bos.OS.Cmd.run dune_build_install |> or_die;
+    ) else (
+      Paths.iter update_opam_file report
+    )
+  );
+  if have_changes then exit 1;
+  if not (Paths.is_empty stale_files) then exit 1
 
 let () =
   Fmt_tty.setup_std_outputs ();
