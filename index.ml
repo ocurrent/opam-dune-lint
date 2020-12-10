@@ -8,7 +8,7 @@ let update_index t changes ~pkg =
       match op with
       | OpamDirTrack.Added _ ->
         begin match String.split_on_char '/' file with
-          | "lib" :: lib :: _ -> Owner.add lib pkg acc
+          | ["lib"; lib; "META"] -> Owner.add lib pkg acc
           | _ -> acc
         end
       | _ -> acc

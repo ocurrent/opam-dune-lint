@@ -34,6 +34,8 @@ let get_libraries ~pkg ~target =
       | _ -> None
     )
   |> Libraries.of_list
+  |> Libraries.remove "threads"         (* META file is provided by ocamlfind, but dune doesn't need it *)
+  |> Libraries.add "dune"               (* We always need dune *)
 
 let to_opam lib =
   let lib = Astring.String.take ~sat:((<>) '.') lib in
