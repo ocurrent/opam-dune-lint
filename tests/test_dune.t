@@ -26,9 +26,18 @@ Create a simple dune project:
   $ touch main.ml test.ml
   $ dune build
 
+Check that the missing libraries are detected:
+
+  $ dune-opam-lint </dev/null 2>&1 | sed 's/= [^)}]*/= */g'
+  test.opam: changes needed:
+    "fmt" {>= *}
+    "bos" {with-test & >= *}
+    "opam-state" {with-test & >= *}
+  Run with -f to apply changes in non-interactive mode.
+
 Check that the missing libraries get added:
 
-  $ dune-opam-lint 2>&1 | sed 's/= [^)}]*/= */g'
+  $ dune-opam-lint -f 2>&1 | sed 's/= [^)}]*/= */g'
   test.opam: changes needed:
     "fmt" {>= *}
     "bos" {with-test & >= *}
@@ -66,7 +75,7 @@ Check adding and removing of test markers:
 
   $ dune build @install
 
-  $ dune-opam-lint 2>&1 | sed 's/= [^)}]*/= */g'
+  $ dune-opam-lint -f 2>&1 | sed 's/= [^)}]*/= */g'
   test.opam: changes needed:
     "fmt" (remove {with-test})
     "ocamlfind" (remove {with-test})

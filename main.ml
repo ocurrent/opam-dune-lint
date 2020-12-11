@@ -115,7 +115,21 @@ let update_opam_file path = function
     OpamFile.OPAM.write path opam;
     Fmt.pr "Wrote %S@." (OpamFile.to_string path)
 
-let main dir =
+let confirm_with_user () =
+  if Unix.(isatty stdin) then (
+    prerr_string "Write changes? [y] ";
+    flush stderr;
+    match input_line stdin |> String.lowercase_ascii with
+    | "" | "y" | "yes" -> true
+    | _ ->
+      Fmt.pr "Aborted.@.";
+      false
+  ) else (
+    Fmt.pr "Run with -f to apply changes in non-interactive mode.@.";
+    false
+  )
+
+let main force dir =
   Sys.chdir dir;
   let old_opam_files = get_opam_files () in
   Bos.OS.Cmd.run dune_build_install |> or_die;
@@ -130,14 +144,16 @@ let main dir =
   Paths.iter display report;
   let have_changes = Paths.exists (fun _ -> function (_, []) -> false | _ -> true) report in
   if have_changes then (
-    let project = Dune_project.parse () in
-    if Dune_project.generate_opam_enabled project then (
-      project
-      |> Dune_project.update report
-      |> Dune_project.write_project_file;
-      Bos.OS.Cmd.run dune_build_install |> or_die;
-    ) else (
-      Paths.iter update_opam_file report
+    if force || confirm_with_user () then (
+      let project = Dune_project.parse () in
+      if Dune_project.generate_opam_enabled project then (
+        project
+        |> Dune_project.update report
+        |> Dune_project.write_project_file;
+        Bos.OS.Cmd.run dune_build_install |> or_die;
+      ) else (
+        Paths.iter update_opam_file report
+      )
     )
   );
   if have_changes then exit 1;
@@ -153,9 +169,16 @@ let dir =
     ~docv:"DIR"
     []
 
+let force =
+  Arg.value @@
+  Arg.flag @@
+  Arg.info
+    ~doc:"Update files without confirmation"
+    ["f"; "force"]
+
 let cmd =
   let doc = "keep dune and opam files in sync" in
-  Term.(const main $ dir),
+  Term.(const main $ force $ dir),
   Term.info "dune-opam-lint" ~doc
 
 let () =
