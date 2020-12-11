@@ -43,7 +43,7 @@ let to_opam lib =
   match Index.Owner.find_opt lib index with
   | Some pkg -> pkg
   | None ->
-    Fmt.pr "WARNING: can't find opam package providing %S!" lib;
+    Fmt.pr "WARNING: can't find opam package providing %S!@." lib;
     OpamPackage.create (OpamPackage.Name.of_string lib) (OpamPackage.Version.of_string "0")
 
 let to_opam_set libs =

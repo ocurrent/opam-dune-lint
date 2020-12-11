@@ -23,6 +23,6 @@ let create () =
   OpamPackage.Set.fold (fun pkg acc ->
       let changes = OpamPath.Switch.changes gt.root switch (OpamPackage.name pkg) in
       match OpamFile.Changes.read_opt changes with
-      | None -> Fmt.pr "WARNING: no .changes found for %S!" (OpamPackage.to_string pkg); acc
+      | None -> Fmt.pr "WARNING: no .changes found for %S!@." (OpamPackage.to_string pkg); acc
       | Some changes -> update_index acc changes ~pkg
     ) installed Owner.empty
