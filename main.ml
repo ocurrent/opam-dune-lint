@@ -115,7 +115,7 @@ let update_opam_file path = function
     OpamFile.OPAM.write path opam;
     Fmt.pr "Wrote %S@." (OpamFile.to_string path)
 
-let scan ~dir =
+let main dir =
   Sys.chdir dir;
   let old_opam_files = get_opam_files () in
   Bos.OS.Cmd.run dune_build_install |> or_die;
@@ -143,13 +143,21 @@ let scan ~dir =
   if have_changes then exit 1;
   if not (Paths.is_empty stale_files) then exit 1
 
+open Cmdliner
+
+let dir =
+  Arg.value @@
+  Arg.pos 0 Arg.dir "." @@
+  Arg.info
+    ~doc:"Root of dune project to check"
+    ~docv:"DIR"
+    []
+
+let cmd =
+  let doc = "keep dune and opam files in sync" in
+  Term.(const main $ dir),
+  Term.info "dune-opam-lint" ~doc
+
 let () =
   Fmt_tty.setup_std_outputs ();
-  try
-    match Sys.argv with
-    | [| _prog; dir |] -> scan ~dir
-    | [| _prog |] -> scan ~dir:"."
-    | _ -> failwith "usage: dune-opam-lint DIR"
-  with Failure msg ->
-    Fmt.epr "%s@." msg;
-    exit 1
+  Term.exit (Term.eval cmd : unit Term.result)
