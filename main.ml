@@ -15,6 +15,7 @@ let dune_build_install =
 let get_libraries ~pkg ~target =
   Dune_project.Deps.get_external_lib_deps ~pkg ~target
   |> Libraries.remove "threads"         (* META file is provided by ocamlfind, but dune doesn't need it *)
+  |> Libraries.remove "str"
   |> Libraries.add "dune"               (* We always need dune *)
 
 let to_opam lib =
