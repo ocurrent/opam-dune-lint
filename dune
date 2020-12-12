@@ -1,4 +1,4 @@
 (executable
  (public_name dune-opam-lint)
  (name main)
- (libraries fmt fmt.tty bos opam-format opam-state findlib dune-private-libs.dune-lang cmdliner))
+ (libraries astring fmt fmt.tty bos opam-format opam-state findlib dune-private-libs.dune-lang cmdliner sexplib))

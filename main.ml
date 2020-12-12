@@ -1,7 +1,5 @@
 open Types
 
-module Libraries = Set.Make(String)
-
 let or_die = function
   | Ok x -> x
   | Error (`Msg m) -> failwith m
@@ -11,31 +9,13 @@ let () =
 
 let index = Index.create ()
 
-(* todo: we should probably select machine readable output.
-   But passing --sexp just tells you to use unstable mode anyway.
-   We use [tmp_dir] so that "--only-packages" doesn't invalidate the existing build. *)
-let dune_external_lib_deps ~tmp_dir ~pkg ~target =
-  let tmp_dir = Fpath.to_string tmp_dir in
-  Bos.Cmd.(v "dune" % "external-lib-deps" % "--only-packages" % pkg % "--build-dir" % tmp_dir % target)
-
 let dune_build_install =
   Bos.Cmd.(v "dune" % "build" %% (on (Unix.(isatty stderr)) (v "--display=progress")) % "@install")
 
-(* Get the ocamlfind dependencies of [pkg]. *)
 let get_libraries ~pkg ~target =
-  Bos.OS.Dir.with_tmp "dune-opam-lint-%s" (fun tmp_dir () ->
-      Bos.OS.Cmd.run_out (dune_external_lib_deps ~tmp_dir ~pkg ~target)
-      |> Bos.OS.Cmd.to_lines
-      |> or_die
-    ) ()
-  |> or_die
-  |> List.filter_map (fun line ->
-      match Astring.String.cut ~sep:" " line with
-      | Some ("-", lib) -> Some lib
-      | _ -> None
-    )
-  |> Libraries.of_list
+  Dune_project.Deps.get_external_lib_deps ~pkg ~target
   |> Libraries.remove "threads"         (* META file is provided by ocamlfind, but dune doesn't need it *)
+  |> Libraries.remove "str"
   |> Libraries.add "dune"               (* We always need dune *)
 
 let to_opam lib =
@@ -46,7 +26,8 @@ let to_opam lib =
     Fmt.pr "WARNING: can't find opam package providing %S!@." lib;
     OpamPackage.create (OpamPackage.Name.of_string lib) (OpamPackage.Version.of_string "0")
 
-let to_opam_set libs =
+let to_opam_set ~project libs =
+  let libs = libs |> Libraries.filter (fun lib -> Dune_project.lookup lib project <> Some `Internal) in
   Libraries.fold (fun lib acc -> OpamPackage.Set.add (to_opam lib) acc) libs OpamPackage.Set.empty
 
 let get_opam_files () =
@@ -77,9 +58,9 @@ let display path (_opam, problems) =
     Fmt.(styled `Bold string) pkg
     pp_problems problems
 
-let generate_report ~opam pkg =
-  let build = get_libraries ~pkg ~target:"@install" |> to_opam_set in
-  let test = get_libraries ~pkg ~target:"@runtest" |> to_opam_set in
+let generate_report ~project ~opam pkg =
+  let build = get_libraries ~pkg ~target:"@install" |> to_opam_set ~project in
+  let test = get_libraries ~pkg ~target:"@runtest" |> to_opam_set ~project in
   let opam_deps = OpamFile.OPAM.depends opam |> Formula.classify in
   let build_problems =
     OpamPackage.Set.to_seq build
@@ -137,8 +118,9 @@ let main force dir =
   if Paths.is_empty opam_files then failwith "No *.opam files found!";
   let stale_files = Paths.merge check_identical old_opam_files opam_files in
   stale_files |> Paths.iter (fun path msg -> Fmt.pr "%s: %s after 'dune build @install'!@." path msg);
+  let project = Dune_project.describe () in
   opam_files |> Paths.mapi (fun path opam ->
-      (opam, generate_report ~opam (Filename.chop_suffix path ".opam"))
+      (opam, generate_report ~project ~opam (Filename.chop_suffix path ".opam"))
     )
   |> fun report ->
   Paths.iter display report;

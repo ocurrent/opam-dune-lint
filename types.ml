@@ -1,5 +1,7 @@
 module Paths = Map.Make(String)
 
+module Libraries = Set.Make(String)
+
 module Change = struct
   type t =
     [ `Remove_with_test of OpamPackage.Name.t
