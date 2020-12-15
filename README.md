@@ -1,6 +1,6 @@
-# dune-opam-lint
+# opam-dune-lint
 
-`dune-opam-lint` checks that all ocamlfind libraries listed as dune
+`opam-dune-lint` checks that all ocamlfind libraries listed as dune
 dependencies have corresponding opam dependencies listed in the opam files.
 If not, it offers to add them (either to your opam files, or to your `dune-project` if you're generating your opam files from that).
 
@@ -11,7 +11,7 @@ $ ls *.opam
 ocaml-ci-api.opam     ocaml-ci-service.opam  ocaml-ci-web.opam
 ocaml-ci-client.opam  ocaml-ci-solver.opam
 
-$ dune-opam-lint
+$ opam-dune-lint
 ocaml-ci-api.opam: OK
 ocaml-ci-client.opam: OK
 ocaml-ci-service.opam: changes needed:
@@ -35,7 +35,7 @@ It works as follows:
 6. Checks that each required opam package is listed in the opam file.
 7. For any missing packages, it offers to add a suitable dependency, using the installed package's version as the default lower-bound.
 
-`dune-opam-lint` can be run manually to update your project, or as part of CI to check for missing dependencies.
+`opam-dune-lint` can be run manually to update your project, or as part of CI to check for missing dependencies.
 It exits with a non-zero status if changes are needed, or if the opam files were not up-to-date with the `dune-project` file.
 When run interactively, it asks for confirmation before writing files.
 If `stdin` is not a tty, then it does not write changes unless run with `-f`.

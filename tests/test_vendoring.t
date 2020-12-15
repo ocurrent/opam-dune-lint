@@ -57,7 +57,7 @@ Check configuration:
 Check that the missing findlib for "lib" is detected, but not "vendored"'s dependency
 on "bos":
 
-  $ dune-opam-lint </dev/null 2>&1 | sed 's/= [^)}]*/= */g'
+  $ opam-dune-lint </dev/null 2>&1 | sed 's/= [^)}]*/= */g'
   main.opam: changes needed:
     "ocamlfind" {>= *}
   Run with -f to apply changes in non-interactive mode.

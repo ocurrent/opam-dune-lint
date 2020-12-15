@@ -154,7 +154,7 @@ module Deps = struct
 
   (* Get the ocamlfind dependencies of [pkg]. *)
   let get_external_lib_deps ~pkg ~target =
-    Bos.OS.Dir.with_tmp "dune-opam-lint-%s" (fun tmp_dir () ->
+    Bos.OS.Dir.with_tmp "opam-dune-lint-%s" (fun tmp_dir () ->
         Bos.OS.Cmd.run_out (dune_external_lib_deps ~tmp_dir ~pkg ~target)
         |> Bos.OS.Cmd.to_string
         |> or_die
