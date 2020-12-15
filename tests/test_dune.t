@@ -28,7 +28,7 @@ Create a simple dune project:
 
 Check that the missing libraries are detected:
 
-  $ dune-opam-lint </dev/null 2>&1 | sed 's/= [^)}]*/= */g'
+  $ opam-dune-lint </dev/null 2>&1 | sed 's/= [^)}]*/= */g'
   test.opam: changes needed:
     "fmt" {>= *}
     "bos" {with-test & >= *}
@@ -37,7 +37,7 @@ Check that the missing libraries are detected:
 
 Check that the missing libraries get added:
 
-  $ dune-opam-lint -f 2>&1 | sed 's/= [^)}]*/= */g'
+  $ opam-dune-lint -f 2>&1 | sed 's/= [^)}]*/= */g'
   test.opam: changes needed:
     "fmt" {>= *}
     "bos" {with-test & >= *}
@@ -75,7 +75,7 @@ Check adding and removing of test markers:
 
   $ dune build @install
 
-  $ dune-opam-lint -f 2>&1 | sed 's/= [^)}]*/= */g'
+  $ opam-dune-lint -f 2>&1 | sed 's/= [^)}]*/= */g'
   test.opam: changes needed:
     "fmt" (remove {with-test})
     "ocamlfind" (remove {with-test})
@@ -96,5 +96,5 @@ Check adding and removing of test markers:
     (ocamlfind (>= *))
     libfoo))
 
-  $ dune-opam-lint
+  $ opam-dune-lint
   test.opam: OK

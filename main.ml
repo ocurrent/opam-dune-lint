@@ -161,7 +161,7 @@ let force =
 let cmd =
   let doc = "keep dune and opam files in sync" in
   Term.(const main $ force $ dir),
-  Term.info "dune-opam-lint" ~doc
+  Term.info "opam-dune-lint" ~doc
 
 let () =
   Fmt_tty.setup_std_outputs ();

@@ -3,8 +3,8 @@ opam-version: "2.0"
 synopsis: "Ensure dune and opam dependencies are consistent"
 maintainer: ["talex5@gmail.com"]
 authors: ["talex5@gmail.com"]
-homepage: "https://github.com/talex5/dune-opam-lint"
-bug-reports: "https://github.com/talex5/dune-opam-lint/issues"
+homepage: "https://github.com/ocurrent/opam-dune-lint"
+bug-reports: "https://github.com/ocurrent/opam-dune-lint/issues"
 depends: [
   "dune" {>= "2.7"}
   "astring" {>= "0.8.5"}
@@ -33,4 +33,4 @@ build: [
     "@doc" {with-doc}
   ]
 ]
-dev-repo: "git+https://github.com/talex5/dune-opam-lint.git"
+dev-repo: "git+https://github.com/ocurrent/opam-dune-lint.git"

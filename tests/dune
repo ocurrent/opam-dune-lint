@@ -1,1 +1,1 @@
-(cram (deps %{bin:dune-opam-lint}))
+(cram (deps %{bin:opam-dune-lint}))
