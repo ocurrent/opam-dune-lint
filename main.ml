@@ -12,21 +12,25 @@ let dune_build_install =
 
 let get_libraries ~pkg ~target =
   Dune_project.Deps.get_external_lib_deps ~pkg ~target
-  |> Libraries.remove "threads"         (* META file is provided by ocamlfind, but dune doesn't need it *)
-  |> Libraries.remove "str"
   |> Libraries.add "dune"               (* We always need dune *)
 
 let to_opam ~index lib =
-  let lib = Astring.String.take ~sat:((<>) '.') lib in
-  match Index.Owner.find_opt lib index with
-  | Some pkg -> pkg
-  | None ->
-    Fmt.pr "WARNING: can't find opam package providing %S!@." lib;
-    OpamPackage.create (OpamPackage.Name.of_string lib) (OpamPackage.Version.of_string "0")
+  match Astring.String.take ~sat:((<>) '.') lib with
+  | "threads" | "unix" | "str" -> None          (* Distributed with OCaml *)
+  | lib ->
+    match Index.Owner.find_opt lib index with
+    | Some pkg -> Some pkg
+    | None ->
+      Fmt.pr "WARNING: can't find opam package providing %S!@." lib;
+      Some (OpamPackage.create (OpamPackage.Name.of_string lib) (OpamPackage.Version.of_string "0"))
 
 let to_opam_set ~project ~index libs =
   let libs = libs |> Libraries.filter (fun lib -> Dune_project.lookup lib project <> Some `Internal) in
-  Libraries.fold (fun lib acc -> OpamPackage.Set.add (to_opam ~index lib) acc) libs OpamPackage.Set.empty
+  Libraries.fold (fun lib acc ->
+      match to_opam ~index lib with
+      | Some pkg -> OpamPackage.Set.add pkg acc
+      | None -> acc
+    ) libs OpamPackage.Set.empty
 
 let get_opam_files () =
   Sys.readdir "."
