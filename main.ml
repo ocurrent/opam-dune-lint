@@ -7,8 +7,6 @@ let or_die = function
 let () =
   Findlib.init ()
 
-let index = Index.create ()
-
 let dune_build_install =
   Bos.Cmd.(v "dune" % "build" %% (on (Unix.(isatty stderr)) (v "--display=progress")) % "@install")
 
@@ -18,7 +16,7 @@ let get_libraries ~pkg ~target =
   |> Libraries.remove "str"
   |> Libraries.add "dune"               (* We always need dune *)
 
-let to_opam lib =
+let to_opam ~index lib =
   let lib = Astring.String.take ~sat:((<>) '.') lib in
   match Index.Owner.find_opt lib index with
   | Some pkg -> pkg
@@ -26,9 +24,9 @@ let to_opam lib =
     Fmt.pr "WARNING: can't find opam package providing %S!@." lib;
     OpamPackage.create (OpamPackage.Name.of_string lib) (OpamPackage.Version.of_string "0")
 
-let to_opam_set ~project libs =
+let to_opam_set ~project ~index libs =
   let libs = libs |> Libraries.filter (fun lib -> Dune_project.lookup lib project <> Some `Internal) in
-  Libraries.fold (fun lib acc -> OpamPackage.Set.add (to_opam lib) acc) libs OpamPackage.Set.empty
+  Libraries.fold (fun lib acc -> OpamPackage.Set.add (to_opam ~index lib) acc) libs OpamPackage.Set.empty
 
 let get_opam_files () =
   Sys.readdir "."
@@ -58,9 +56,9 @@ let display path (_opam, problems) =
     Fmt.(styled `Bold string) pkg
     pp_problems problems
 
-let generate_report ~project ~opam pkg =
-  let build = get_libraries ~pkg ~target:"@install" |> to_opam_set ~project in
-  let test = get_libraries ~pkg ~target:"@runtest" |> to_opam_set ~project in
+let generate_report ~project ~index ~opam pkg =
+  let build = get_libraries ~pkg ~target:"@install" |> to_opam_set ~project ~index in
+  let test = get_libraries ~pkg ~target:"@runtest" |> to_opam_set ~project ~index in
   let opam_deps = OpamFile.OPAM.depends opam |> Formula.classify in
   let build_problems =
     OpamPackage.Set.to_seq build
@@ -112,6 +110,7 @@ let confirm_with_user () =
 
 let main force dir =
   Sys.chdir dir;
+  let index = Index.create () in
   let old_opam_files = get_opam_files () in
   Bos.OS.Cmd.run dune_build_install |> or_die;
   let opam_files = get_opam_files () in
@@ -120,7 +119,7 @@ let main force dir =
   stale_files |> Paths.iter (fun path msg -> Fmt.pr "%s: %s after 'dune build @install'!@." path msg);
   let project = Dune_project.describe () in
   opam_files |> Paths.mapi (fun path opam ->
-      (opam, generate_report ~project ~opam (Filename.chop_suffix path ".opam"))
+      (opam, generate_report ~project ~index ~opam (Filename.chop_suffix path ".opam"))
     )
   |> fun report ->
   Paths.iter display report;
