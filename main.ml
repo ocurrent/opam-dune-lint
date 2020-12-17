@@ -12,7 +12,7 @@ let dune_build_install =
 
 let get_libraries ~pkg ~target =
   Dune_project.Deps.get_external_lib_deps ~pkg ~target
-  |> Libraries.add "dune"               (* We always need dune *)
+  |> Libraries.add "dune" Dir_set.empty              (* We always need dune *)
 
 let to_opam ~index lib =
   match Astring.String.take ~sat:((<>) '.') lib with
@@ -24,13 +24,14 @@ let to_opam ~index lib =
       Fmt.pr "WARNING: can't find opam package providing %S!@." lib;
       Some (OpamPackage.create (OpamPackage.Name.of_string lib) (OpamPackage.Version.of_string "0"))
 
+(* Convert a map of (ocamlfind-library -> hints) to a map of (opam-package -> hints). *)
 let to_opam_set ~project ~index libs =
-  let libs = libs |> Libraries.filter (fun lib -> Dune_project.lookup lib project <> Some `Internal) in
-  Libraries.fold (fun lib acc ->
+  let libs = libs |> Libraries.filter (fun lib _ -> Dune_project.lookup lib project <> Some `Internal) in
+  Libraries.fold (fun lib dirs acc ->
       match to_opam ~index lib with
-      | Some pkg -> OpamPackage.Set.add pkg acc
+      | Some pkg -> OpamPackage.Map.update pkg (Dir_set.union dirs) Dir_set.empty acc
       | None -> acc
-    ) libs OpamPackage.Set.empty
+    ) libs OpamPackage.Map.empty
 
 let get_opam_files () =
   Sys.readdir "."
@@ -52,7 +53,7 @@ let check_identical _path a b =
 
 let pp_problems f = function
   | [] -> Fmt.pf f " %a" Fmt.(styled `Green string) "OK"
-  | problems -> Fmt.pf f " changes needed:@,%a" Fmt.(list ~sep:cut Change.pp) problems
+  | problems -> Fmt.pf f " changes needed:@,%a" Fmt.(list ~sep:cut Change_with_hint.pp) problems
 
 let display path (_opam, problems) =
   let pkg = Filename.chop_suffix path ".opam" in
@@ -65,26 +66,29 @@ let generate_report ~project ~index ~opam pkg =
   let test = get_libraries ~pkg ~target:"@runtest" |> to_opam_set ~project ~index in
   let opam_deps = OpamFile.OPAM.depends opam |> Formula.classify in
   let build_problems =
-    OpamPackage.Set.to_seq build
+    OpamPackage.Map.to_seq build
     |> List.of_seq
-    |> List.concat_map (fun dep ->
+    |> List.concat_map (fun (dep, hint) ->
         let dep_name = OpamPackage.name dep in
         match OpamPackage.Name.Map.find_opt dep_name opam_deps with
         | Some `Build -> []
-        | Some `Test -> [`Remove_with_test dep_name]
-        | None -> [`Add_build_dep dep]
+        | Some `Test -> [`Remove_with_test dep_name, hint]
+        | None -> [`Add_build_dep dep, hint]
       )
   in
   let test_problems =
-    OpamPackage.Set.diff test build
-    |> OpamPackage.Set.to_seq
+    test
+    |> OpamPackage.Map.to_seq
     |> List.of_seq
-    |> List.concat_map (fun dep ->
-        let dep_name = OpamPackage.name dep in
-        match OpamPackage.Name.Map.find_opt dep_name opam_deps with
-        | Some `Test -> []
-        | Some `Build -> [`Add_with_test dep_name]
-        | None -> [`Add_test_dep dep]
+    |> List.concat_map (fun (dep, hint) ->
+        if OpamPackage.Map.mem dep build then []
+        else (
+          let dep_name = OpamPackage.name dep in
+          match OpamPackage.Name.Map.find_opt dep_name opam_deps with
+          | Some `Test -> []
+          | Some `Build -> [`Add_with_test dep_name, hint]
+          | None -> [`Add_test_dep dep, hint]
+        )
       )
   in
   build_problems @ test_problems
@@ -127,6 +131,9 @@ let main force dir =
     )
   |> fun report ->
   Paths.iter display report;
+  if Paths.exists (fun _ (_, changes) -> List.exists Change_with_hint.includes_version changes) report then
+    Fmt.pr "Note: version numbers are just suggestions based on the currently installed version.@.";
+  let report = Paths.map (fun (opam, changes) -> opam, List.map Change_with_hint.remove_hint changes) report in
   let have_changes = Paths.exists (fun _ -> function (_, []) -> false | _ -> true) report in
   if have_changes then (
     if force || confirm_with_user () then (
@@ -139,9 +146,10 @@ let main force dir =
       ) else (
         Paths.iter update_opam_file report
       )
+    ) else (
+      exit 1
     )
   );
-  if have_changes then exit 1;
   if not (Paths.is_empty stale_files) then exit 1
 
 open Cmdliner

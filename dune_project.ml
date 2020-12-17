@@ -103,6 +103,8 @@ let write_project_file t =
   Fmt.pr "Wrote %S@." path
 
 module Deps = struct
+  type t = Dir_set.t Libraries.t
+
   (*  We use [tmp_dir] so that "--only-packages" doesn't invalidate the existing build. *)
   let dune_external_lib_deps ~tmp_dir ~pkg ~target =
     let tmp_dir = Fpath.to_string tmp_dir in
@@ -131,15 +133,29 @@ module Deps = struct
       Hashtbl.add dir_types path r;
       r
 
-  let merge_dep acc = function
-    | Sexplib.Sexp.List (Atom lib :: _) -> Libraries.add lib acc
+  let merge_dep ~path acc = function
+    | Sexplib.Sexp.List (Atom lib :: _) ->
+      let dirs = Libraries.find_opt lib acc |> Option.value ~default:Dir_set.empty in
+      Libraries.add lib (Dir_set.add path dirs) acc
     | x -> Fmt.failwith "Bad output from 'dune external-lib-deps': %a" Sexplib.Sexp.pp_hum x
+
+  (* Dune sometimes gives made-up paths. Search upwards until we find a real directory. *)
+  let rec find_real_dir = function
+    | ".ppx" -> "(ppx)"
+    | path ->
+      match Unix.stat path with
+      | _ -> path
+      | exception Unix.Unix_error(Unix.ENOENT, _, _) ->
+        let parent = Filename.dirname path in
+        if parent <> path then find_real_dir parent
+        else path
 
   let merge_dir ~dir_types acc = function
     | Sexplib.Sexp.List [Atom path; List deps] ->
+      let path = find_real_dir path in
       if should_use_dir ~dir_types path then (
         (* Fmt.pr "Process %S@." path; *)
-        List.fold_left merge_dep acc deps
+        List.fold_left (merge_dep ~path) acc deps
       ) else (
         (* Fmt.pr "Skip %S@." path; *)
         acc
@@ -153,7 +169,7 @@ module Deps = struct
     | x -> Fmt.failwith "Bad output from 'dune external-lib-deps': %a" Sexplib.Sexp.pp_hum x
 
   (* Get the ocamlfind dependencies of [pkg]. *)
-  let get_external_lib_deps ~pkg ~target =
+  let get_external_lib_deps ~pkg ~target : t =
     Bos.OS.Dir.with_tmp "opam-dune-lint-%s" (fun tmp_dir () ->
         Bos.OS.Cmd.run_out (dune_external_lib_deps ~tmp_dir ~pkg ~target)
         |> Bos.OS.Cmd.to_string

@@ -26,22 +26,29 @@ Create a simple dune project:
   $ touch main.ml test.ml
   $ dune build
 
+Replace all version numbers with "1.0" to get predictable outut.
+
+  $ export OPAM_DUNE_LINT_TESTS=y
+
 Check that the missing libraries are detected:
 
-  $ opam-dune-lint </dev/null 2>&1 | sed 's/= [^)}]*/= */g'
+  $ opam-dune-lint </dev/null
   test.opam: changes needed:
-    "fmt" {>= *}
-    "bos" {with-test & >= *}
-    "opam-state" {with-test & >= *}
+    "fmt" {>= 1.0}                           [from /]
+    "bos" {with-test & >= 1.0}               [from /]
+    "opam-state" {with-test & >= 1.0}        [from /]
+  Note: version numbers are just suggestions based on the currently installed version.
   Run with -f to apply changes in non-interactive mode.
+  [1]
 
 Check that the missing libraries get added:
 
-  $ opam-dune-lint -f 2>&1 | sed 's/= [^)}]*/= */g'
+  $ opam-dune-lint -f
   test.opam: changes needed:
-    "fmt" {>= *}
-    "bos" {with-test & >= *}
-    "opam-state" {with-test & >= *}
+    "fmt" {>= 1.0}                           [from /]
+    "bos" {with-test & >= 1.0}               [from /]
+    "opam-state" {with-test & >= 1.0}        [from /]
+  Note: version numbers are just suggestions based on the currently installed version.
   Wrote "dune-project"
 
   $ cat dune-project | sed 's/= [^)}]*/= */g'
@@ -75,12 +82,12 @@ Check adding and removing of test markers:
 
   $ dune build @install
 
-  $ opam-dune-lint -f 2>&1 | sed 's/= [^)}]*/= */g'
+  $ opam-dune-lint -f
   test.opam: changes needed:
-    "fmt" (remove {with-test})
-    "ocamlfind" (remove {with-test})
-    "bos" {with-test} (missing {with-test} annotation)
-    "opam-state" {with-test} (missing {with-test} annotation)
+    "fmt"                                    [from /] (remove {with-test})
+    "ocamlfind"                              [from /] (remove {with-test})
+    "bos" {with-test}                        [from /] (missing {with-test} annotation)
+    "opam-state" {with-test}                 [from /] (missing {with-test} annotation)
   Wrote "dune-project"
 
   $ cat dune-project | sed 's/= [^)}]*/= */g'
