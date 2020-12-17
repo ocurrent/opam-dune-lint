@@ -16,7 +16,8 @@ let get_libraries ~pkg ~target =
 
 let to_opam ~index lib =
   match Astring.String.take ~sat:((<>) '.') lib with
-  | "threads" | "unix" | "str" -> None          (* Distributed with OCaml *)
+  | "threads" | "unix" | "str" | "compiler-libs"
+  | "bigarray" | "dynlink" | "ocamldoc" | "stdlib" -> None          (* Distributed with OCaml *)
   | lib ->
     match Index.Owner.find_opt lib index with
     | Some pkg -> Some pkg
