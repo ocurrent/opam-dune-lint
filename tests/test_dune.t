@@ -77,10 +77,10 @@ Check adding and removing of test markers:
 
   $ opam-dune-lint -f 2>&1 | sed 's/= [^)}]*/= */g'
   test.opam: changes needed:
-    "fmt" (remove {with-test})
-    "ocamlfind" (remove {with-test})
-    "bos" {with-test} (missing {with-test} annotation)
-    "opam-state" {with-test} (missing {with-test} annotation)
+    "fmt"                          (remove {with-test})
+    "ocamlfind"                    (remove {with-test})
+    "bos" {with-test}              (missing {with-test} annotation)
+    "opam-state" {with-test}       (missing {with-test} annotation)
   Wrote "dune-project"
 
   $ cat dune-project | sed 's/= [^)}]*/= */g'
