@@ -11,13 +11,17 @@ module Change = struct
 
   let pp_name = Fmt.using OpamPackage.Name.to_string Fmt.(quote string)
 
+  let version_to_string =
+    if Sys.getenv_opt "OPAM_DUNE_LINT_TESTS" = Some "y" then Fun.const "1.0"
+    else OpamPackage.version_to_string
+
   let pp f t =
     let change, hint =
       match t with
       | `Remove_with_test name -> Fmt.str "%a" pp_name name, "(remove {with-test})"
       | `Add_with_test name -> Fmt.str "%a {with-test}" pp_name name, "(missing {with-test} annotation)"
-      | `Add_build_dep dep -> Fmt.str "%a {>= %s}" pp_name (OpamPackage.name dep) (OpamPackage.version_to_string dep), ""
-      | `Add_test_dep dep -> Fmt.str "%a {with-test & >= %s}" pp_name (OpamPackage.name dep) (OpamPackage.version_to_string dep), ""
+      | `Add_build_dep dep -> Fmt.str "%a {>= %s}" pp_name (OpamPackage.name dep) (version_to_string dep), ""
+      | `Add_test_dep dep -> Fmt.str "%a {with-test & >= %s}" pp_name (OpamPackage.name dep) (version_to_string dep), ""
     in
     if hint = "" then
       Fmt.string f change

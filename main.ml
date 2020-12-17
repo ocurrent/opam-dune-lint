@@ -139,9 +139,10 @@ let main force dir =
       ) else (
         Paths.iter update_opam_file report
       )
+    ) else (
+      exit 1
     )
   );
-  if have_changes then exit 1;
   if not (Paths.is_empty stale_files) then exit 1
 
 open Cmdliner

@@ -47,6 +47,10 @@ since they should be listed in the vendored opam files instead.
   $ (cd vendored && touch vendored.ml vendored.opam)
   $ dune build
 
+Replace all version numbers with "1.0" to get predictable outut.
+
+  $ export OPAM_DUNE_LINT_TESTS=y
+
 Check configuration:
 
   $ dune external-lib-deps -p main @install
@@ -57,7 +61,8 @@ Check configuration:
 Check that the missing findlib for "lib" is detected, but not "vendored"'s dependency
 on "bos":
 
-  $ opam-dune-lint </dev/null 2>&1 | sed 's/= [^)}]*/= */g'
+  $ opam-dune-lint </dev/null
   main.opam: changes needed:
-    "ocamlfind" {>= *}
+    "ocamlfind" {>= 1.0}
   Run with -f to apply changes in non-interactive mode.
+  [1]
