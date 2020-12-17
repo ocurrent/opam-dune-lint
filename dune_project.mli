@@ -21,5 +21,8 @@ val lookup : string -> index -> [`Internal | `External] option
 (** [lookup lib index] returns information from "dune describe" about [lib]. *)
 
 module Deps : sig
-  val get_external_lib_deps : pkg:string -> target:string -> Libraries.t
+  type t = Dir_set.t Libraries.t
+  (** The set of OCamlfind libraries needed, each with the directories needing it. *)
+
+  val get_external_lib_deps : pkg:string -> target:string -> t
 end
