@@ -64,5 +64,6 @@ on "bos":
   $ opam-dune-lint </dev/null
   main.opam: changes needed:
     "ocamlfind" {>= 1.0}
+  Note: version numbers are just suggestions based on the currently installed version.
   Run with -f to apply changes in non-interactive mode.
   [1]

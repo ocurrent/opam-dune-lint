@@ -15,6 +15,12 @@ module Change = struct
     if Sys.getenv_opt "OPAM_DUNE_LINT_TESTS" = Some "y" then Fun.const "1.0"
     else OpamPackage.version_to_string
 
+  let includes_version = function
+    | `Remove_with_test _
+    | `Add_with_test _ -> false
+    | `Add_build_dep _
+    | `Add_test_dep _ -> true
+
   let pp f t =
     let change, hint =
       match t with

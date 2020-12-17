@@ -127,6 +127,8 @@ let main force dir =
     )
   |> fun report ->
   Paths.iter display report;
+  if Paths.exists (fun _ (_, changes) -> List.exists Change.includes_version changes) report then
+    Fmt.pr "Note: version numbers are just suggestions based on the currently installed version.@.";
   let have_changes = Paths.exists (fun _ -> function (_, []) -> false | _ -> true) report in
   if have_changes then (
     if force || confirm_with_user () then (

@@ -37,6 +37,7 @@ Check that the missing libraries are detected:
     "fmt" {>= 1.0}
     "bos" {with-test & >= 1.0}
     "opam-state" {with-test & >= 1.0}
+  Note: version numbers are just suggestions based on the currently installed version.
   Run with -f to apply changes in non-interactive mode.
   [1]
 
@@ -47,6 +48,7 @@ Check that the missing libraries get added:
     "fmt" {>= 1.0}
     "bos" {with-test & >= 1.0}
     "opam-state" {with-test & >= 1.0}
+  Note: version numbers are just suggestions based on the currently installed version.
   Wrote "dune-project"
 
   $ cat dune-project | sed 's/= [^)}]*/= */g'
