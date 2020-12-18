@@ -65,7 +65,9 @@ let display path (_opam, problems) =
 let generate_report ~project ~index ~opam pkg =
   let build = get_libraries ~pkg ~target:"@install" |> to_opam_set ~project ~index in
   let test = get_libraries ~pkg ~target:"@runtest" |> to_opam_set ~project ~index in
-  let opam_deps = OpamFile.OPAM.depends opam |> Formula.classify in
+  let opam_deps =
+    OpamFormula.And (OpamFile.OPAM.depends opam, OpamFile.OPAM.depopts opam)
+    |> Formula.classify in
   let build_problems =
     OpamPackage.Map.to_seq build
     |> List.of_seq
