@@ -5,7 +5,23 @@ let or_die = function
   | Error (`Msg m) -> failwith m
 
 let () =
-  Findlib.init ()
+  Findlib.init ();
+  (* When run as a plugin, opam helpfully scrubs the environment.
+     Get the settings back again. *)
+  let env =
+    Bos.Cmd.(v "opam" % "config" % "env" % "--sexp")
+    |> Bos.OS.Cmd.run_out
+    |> Bos.OS.Cmd.to_string
+    |> or_die
+    |> Sexplib.Sexp.of_string
+  in
+  match env with
+  | Sexplib.Sexp.List vars ->
+    vars |> List.iter (function
+        | Sexplib.Sexp.List [Atom name; Atom value] -> Unix.putenv name value
+        | x -> Fmt.epr "WARNING: bad sexp from opam config env: %a@." Sexplib.Sexp.pp_hum x
+      )
+  | x -> Fmt.epr "WARNING: bad sexp from opam config env: %a@." Sexplib.Sexp.pp_hum x
 
 let dune_build_install =
   Bos.Cmd.(v "dune" % "build" %% (on (Unix.(isatty stderr)) (v "--display=progress")) % "@install")
