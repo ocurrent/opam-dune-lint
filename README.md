@@ -8,17 +8,20 @@ Example:
 
 ```
 $ ls *.opam
-ocaml-ci-api.opam     ocaml-ci-service.opam  ocaml-ci-web.opam
-ocaml-ci-client.opam  ocaml-ci-solver.opam
+current_ocluster.opam  ocluster-api.opam  ocluster.opam
 
 $ opam-dune-lint
-ocaml-ci-api.opam: OK
-ocaml-ci-client.opam: OK
-ocaml-ci-service.opam: changes needed:
-  "fmt" {>= 0.8.9}
-  "alcotest-lwt" {with-test & >= 1.2.3}
-ocaml-ci-solver.opam: OK
-ocaml-ci-web.opam: OK
+current_ocluster.opam: changes needed:
+  "ppx_deriving" {>= 5.1}                  [from (ppx), ocurrent-plugin]
+ocluster-api.opam: changes needed:
+  "ppx_deriving" {>= 5.1}                  [from (ppx), api]
+ocluster.opam: changes needed:
+  "capnp-rpc-lwt" {>= 0.8.0}               [from scheduler, worker]
+  "capnp-rpc-net" {>= 0.8.0}               [from scheduler]
+  "ppx_sexp_conv" {>= v0.14.1}             [from (ppx)]
+  "prometheus" {>= 0.7}                    [from scheduler]
+  "alcotest-lwt" {with-test}               [from test] (missing {with-test} annotation)
+Note: version numbers are just suggestions based on the currently installed version.
 Write changes? [y] y
 Wrote "dune-project"
 ```
