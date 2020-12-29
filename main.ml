@@ -5,7 +5,6 @@ let or_die = function
   | Error (`Msg m) -> failwith m
 
 let () =
-  Findlib.init ();
   (* When run as a plugin, opam helpfully scrubs the environment.
      Get the settings back again. *)
   let env =
