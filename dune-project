@@ -15,7 +15,7 @@
   (astring (>= 0.8.5))
   (sexplib (>= v0.14.0))
   (cmdliner (>= 1.0.4))
-  (dune-private-libs (>= 2.7.1))
+  (dune-private-libs (>= 2.8.0))
   (ocaml (>= 4.11.0))
   bos
   fmt

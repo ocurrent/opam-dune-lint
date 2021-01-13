@@ -98,7 +98,7 @@ let write_project_file t =
   let path = "dune-project" in
   let ch = open_out path in
   let f = Format.formatter_of_out_channel ch in
-  Fmt.pf f "@[<v>%a@]@." (Fmt.list ~sep:Fmt.cut (Fmt.using Dune_lang.pp Stdune.Pp.render_ignore_tags)) t;
+  Fmt.pf f "@[<v>%a@]@." (Fmt.list ~sep:Fmt.cut (Fmt.using Dune_lang.pp Stdune.Pp.to_fmt)) t;
   close_out ch;
   Fmt.pr "Wrote %S@." path
 
