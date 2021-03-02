@@ -67,5 +67,9 @@ let classify deps : [`Build | `Test] OpamPackage.Name.Map.t =
   flatten deps
   |> List.fold_left (fun acc (name, formula) ->
       let ty = if OpamFormula.eval available_in_build_env formula then `Build else `Test in
-      OpamPackage.Name.Map.add (OpamPackage.Name.of_string name) ty acc
+      let update x = match x, ty with
+        | `Build, `Build | `Test, `Test -> x
+        | `Test, `Build | `Build, `Test -> `Build
+      in
+      OpamPackage.Name.Map.update (OpamPackage.Name.of_string name) update ty acc
     ) OpamPackage.Name.Map.empty
