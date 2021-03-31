@@ -133,10 +133,13 @@ module Deps = struct
       Hashtbl.add dir_types path r;
       r
 
-  let merge_dep ~path acc = function
+  let merge_dep ~pkg ~path acc = function
     | Sexplib.Sexp.List (Atom lib :: _) ->
-      let dirs = Libraries.find_opt lib acc |> Option.value ~default:Dir_set.empty in
-      Libraries.add lib (Dir_set.add path dirs) acc
+      if Astring.String.take ~sat:((<>) '.') lib <> pkg then
+        let dirs = Libraries.find_opt lib acc |> Option.value ~default:Dir_set.empty in
+        Libraries.add lib (Dir_set.add path dirs) acc
+      else
+        acc
     | x -> Fmt.failwith "Bad output from 'dune external-lib-deps': %a" Sexplib.Sexp.pp_hum x
 
   (* Dune sometimes gives made-up paths. Search upwards until we find a real directory. *)
@@ -150,22 +153,22 @@ module Deps = struct
         if parent <> path then find_real_dir parent
         else path
 
-  let merge_dir ~dir_types acc = function
+  let merge_dir ~pkg ~dir_types acc = function
     | Sexplib.Sexp.List [Atom path; List deps] ->
       let path = find_real_dir path in
       if should_use_dir ~dir_types path then (
         (* Fmt.pr "Process %S@." path; *)
-        List.fold_left (merge_dep ~path) acc deps
+        List.fold_left (merge_dep ~pkg ~path) acc deps
       ) else (
         (* Fmt.pr "Skip %S@." path; *)
         acc
       )
     | x -> Fmt.failwith "Bad output from 'dune external-lib-deps': %a" Sexplib.Sexp.pp_hum x
 
-  let parse = function
+  let parse ~pkg = function
     | Sexplib.Sexp.List [Atom _ctx; List dirs] ->
       let dir_types = Hashtbl.create 10 in
-      List.fold_left (merge_dir ~dir_types) Libraries.empty dirs
+      List.fold_left (merge_dir ~pkg ~dir_types) Libraries.empty dirs
     | x -> Fmt.failwith "Bad output from 'dune external-lib-deps': %a" Sexplib.Sexp.pp_hum x
 
   (* Get the ocamlfind dependencies of [pkg]. *)
@@ -179,7 +182,7 @@ module Deps = struct
     |> String.trim
     |> function
     | "" -> Libraries.empty
-    | sexp -> parse (Sexplib.Sexp.of_string sexp)
+    | sexp -> parse ~pkg (Sexplib.Sexp.of_string sexp)
 end
 
 module Csexp = struct
