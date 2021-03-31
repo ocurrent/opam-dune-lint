@@ -19,5 +19,5 @@
   (ocaml (>= 4.11.0))
   bos
   fmt
-  opam-state
+  (opam-state (>= 2.1.0~~))
   opam-format))
