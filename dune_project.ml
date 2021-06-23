@@ -33,7 +33,7 @@ let package_name =
   List.find_map (function
       | Dune_lang.List [Atom (A "name"); Atom (A name)] -> Some name
       | _ -> None
-    ) 
+    )
 
 let rec simplify_and = function
   | Dune_lang.List [Atom (A "and"); x] -> x
