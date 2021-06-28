@@ -34,8 +34,8 @@ module Change_with_hint = struct
       match c with
       | `Remove_with_test name -> Fmt.str "%a" pp_name name, ["(remove {with-test})"]
       | `Add_with_test name -> Fmt.str "%a {with-test}" pp_name name, ["(missing {with-test} annotation)"]
-      | `Add_build_dep dep -> Fmt.str "%a {>= %s}" pp_name (OpamPackage.name dep) (version_to_string dep), []
-      | `Add_test_dep dep -> Fmt.str "%a {with-test & >= %s}" pp_name (OpamPackage.name dep) (version_to_string dep), []
+      | `Add_build_dep dep -> Fmt.str "%a {>= \"%s\"}" pp_name (OpamPackage.name dep) (version_to_string dep), []
+      | `Add_test_dep dep -> Fmt.str "%a {with-test & >= \"%s\"}" pp_name (OpamPackage.name dep) (version_to_string dep), []
     in
     let hint =
       if Dir_set.is_empty dirs then hint

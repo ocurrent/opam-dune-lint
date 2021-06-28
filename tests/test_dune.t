@@ -26,7 +26,7 @@ Create a simple dune project:
   $ touch main.ml test.ml
   $ dune build
 
-Replace all version numbers with "1.0" to get predictable outut.
+Replace all version numbers with "1.0" to get predictable output.
 
   $ export OPAM_DUNE_LINT_TESTS=y
 
@@ -34,9 +34,9 @@ Check that the missing libraries are detected:
 
   $ opam-dune-lint </dev/null
   test.opam: changes needed:
-    "fmt" {>= 1.0}                           [from /]
-    "bos" {with-test & >= 1.0}               [from /]
-    "opam-state" {with-test & >= 1.0}        [from /]
+    "fmt" {>= "1.0"}                         [from /]
+    "bos" {with-test & >= "1.0"}             [from /]
+    "opam-state" {with-test & >= "1.0"}      [from /]
   Note: version numbers are just suggestions based on the currently installed version.
   Run with -f to apply changes in non-interactive mode.
   [1]
@@ -45,9 +45,9 @@ Check that the missing libraries get added:
 
   $ opam-dune-lint -f
   test.opam: changes needed:
-    "fmt" {>= 1.0}                           [from /]
-    "bos" {with-test & >= 1.0}               [from /]
-    "opam-state" {with-test & >= 1.0}        [from /]
+    "fmt" {>= "1.0"}                         [from /]
+    "bos" {with-test & >= "1.0"}             [from /]
+    "opam-state" {with-test & >= "1.0"}      [from /]
   Note: version numbers are just suggestions based on the currently installed version.
   Wrote "dune-project"
 
