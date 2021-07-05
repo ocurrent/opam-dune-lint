@@ -28,6 +28,16 @@ let map_if name f = function
     Dune_lang.List (x :: f xs)
   | x -> x
 
+(* (... ("foo" args) ...) -> (... ("foo" (f args)) ...)
+   (...)                  -> (... ("foo" (f []  ))    )
+*)
+let rec update_or_create name f = function
+  | Dune_lang.List (Atom (A head) as x :: xs) :: rest when head = name ->
+    Dune_lang.List (x :: f xs) :: rest
+  | [] ->
+    Dune_lang.List (atom name :: f []) :: []
+  | head :: rest -> head :: update_or_create name f rest
+
 (* [package_name xs] returns the value of the (name foo) item in [xs]. *)
 let package_name =
   List.find_map (function
@@ -90,7 +100,7 @@ let update (changes:(_ * Change.t list) Paths.t) (t:t) =
     | Some name ->
       match Paths.find_opt (name ^ ".opam") changes with
       | None -> items
-      | Some (_opam, changes) -> List.map (map_if "depends" (apply_changes ~changes)) items
+      | Some (_opam, changes) -> update_or_create "depends" (apply_changes ~changes) items
   in
   List.map (map_if "package" update_package) t
 
