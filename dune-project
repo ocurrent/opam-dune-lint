@@ -5,6 +5,7 @@
 (source (github ocurrent/opam-dune-lint))
 (authors "talex5@gmail.com")
 (maintainers "talex5@gmail.com")
+(license ISC)
 (cram enable)
 (package
  (name opam-dune-lint)
@@ -17,7 +18,7 @@
   (cmdliner (>= 1.0.4))
   (dune-private-libs (>= 2.8.0))
   (ocaml (>= 4.10.0))
-  bos
-  fmt
+  (bos (>= 0.2.0))
+  (fmt (>= 0.8.9))
   (opam-state (>= 2.1.0~~))
   opam-format))
