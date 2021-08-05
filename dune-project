@@ -20,5 +20,5 @@
   (ocaml (>= 4.10.0))
   (bos (>= 0.2.0))
   (fmt (>= 0.8.9))
-  (opam-state (>= 2.1.0~~))
+  (opam-state (>= 2.0.9))
   opam-format))
