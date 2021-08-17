@@ -118,7 +118,7 @@ let update_opam_file path = function
     let depends = List.fold_left Formula.update_depends opam.OpamFile.OPAM.depends changes in
     let opam = OpamFile.OPAM.with_depends depends opam in
     let path = OpamFile.make (OpamFilename.raw (path)) in
-    OpamFile.OPAM.write path opam;
+    OpamFile.OPAM.write_with_preserved_format path opam;
     Fmt.pr "Wrote %S@." (OpamFile.to_string path)
 
 let confirm_with_user () =
