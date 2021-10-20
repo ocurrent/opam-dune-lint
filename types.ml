@@ -39,7 +39,7 @@ module Change_with_hint = struct
     in
     let hint =
       if Dir_set.is_empty dirs then hint
-      else Fmt.strf "[from @[<h>%a@]]" Fmt.(list ~sep:comma string) (Dir_set.elements dirs) :: hint
+      else Fmt.str "[from @[<h>%a@]]" Fmt.(list ~sep:comma string) (Dir_set.elements dirs) :: hint
     in
     if hint = [] then
       Fmt.string f change
