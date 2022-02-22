@@ -15,8 +15,9 @@
  (depends
   (astring (>= 0.8.5))
   (sexplib (>= v0.14.0))
-  (cmdliner (>= 1.0.4))
-  (dune-private-libs (>= 2.8.0))
+  (cmdliner (>= 1.1.0))
+  (dune-private-libs (and (>= 2.8.0) (< 3.0)))
+  (dune (< 3.0))
   (ocaml (>= 4.10.0))
   (bos (>= 0.2.0))
   (fmt (>= 0.8.9))

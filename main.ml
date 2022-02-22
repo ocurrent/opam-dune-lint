@@ -190,9 +190,10 @@ let force =
 
 let cmd =
   let doc = "keep dune and opam files in sync" in
-  Term.(const main $ force $ dir),
-  Term.info "opam-dune-lint" ~doc
+  let info = Cmd.info "opam-dune-lint" ~doc in
+  let term = Term.(const main $ force $ dir) in
+  Cmd.v info term
 
 let () =
   Fmt_tty.setup_std_outputs ();
-  Term.exit (Term.eval cmd : unit Term.result)
+  exit @@ Cmd.eval cmd
