@@ -118,9 +118,8 @@ module Deps = struct
   (*  We use [tmp_dir] so that "--only-packages" doesn't invalidate the existing build. *)
   let dune_external_lib_deps ~tmp_dir ~pkg ~target =
     let tmp_dir = Fpath.to_string tmp_dir in
-    Bos.Cmd.(v "dune" % "external-lib-deps" % "--only-packages" % pkg
+    Bos.Cmd.(v "dune" % "build" % "--external-lib-deps=sexp" % "--only-packages" % pkg
              % "--build-dir" % tmp_dir
-             % "--sexp" % "--unstable-by-dir"
              % target)
 
   let has_dune_subproject = function
