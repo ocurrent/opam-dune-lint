@@ -1,76 +1,74 @@
 open Types
 
-type t = Dune_lang.t list
+type t = Sexp.t list
 
-let atom = Dune_lang.atom
-let dune_and x y =  Dune_lang.(List [atom "and"; x; y])
-let lower_bound v = Dune_lang.(List [atom ">="; atom (OpamPackage.Version.to_string v)])
+let atom s = Sexp.Atom s
+let dune_and x y =  Sexp.(List [atom "and"; x; y])
+let lower_bound v = Sexp.(List [atom ">="; atom (OpamPackage.Version.to_string v)])
 
 let or_die = function
   | Ok x -> x
   | Error (`Msg m) -> failwith m
 
 let parse () =
-  Stdune.Path.Build.(set_build_dir (Kind.of_string (Sys.getcwd ())));
-  let path = Stdune.Path.of_string "dune-project" in
-  Dune_lang.Parser.load path ~mode:Dune_lang.Parser.Mode.Many
-  |> List.map Dune_lang.Ast.remove_locs
+  Stdune.Path.Build.(set_build_dir (Stdune.Path.Outside_build_dir.of_string (Sys.getcwd ())));
+  Sexp.input_sexps (open_in "dune-project")
 
 let generate_opam_enabled =
   List.exists (function
-      | Dune_lang.List [Dune_lang.Atom (A "generate_opam_files"); Atom (A v)] -> bool_of_string v
+      | Sexp.List [Sexp.Atom "generate_opam_files"; Atom v] -> bool_of_string v
       | _ -> false
     )
 
 (* ("foo" args) -> ("foo" (f args)) *)
 let map_if name f = function
-  | Dune_lang.List (Atom (A head) as x :: xs) when head = name ->
-    Dune_lang.List (x :: f xs)
+  | Sexp.List (Atom head as x :: xs) when head = name ->
+    Sexp.List (x :: f xs)
   | x -> x
 
 (* (... ("foo" args) ...) -> (... ("foo" (f args)) ...)
    (...)                  -> (... ("foo" (f []  ))    )
 *)
 let rec update_or_create name f = function
-  | Dune_lang.List (Atom (A head) as x :: xs) :: rest when head = name ->
-    Dune_lang.List (x :: f xs) :: rest
+  | Sexp.List (Atom head as x :: xs) :: rest when head = name ->
+    Sexp.List (x :: f xs) :: rest
   | [] ->
-    Dune_lang.List (atom name :: f []) :: []
+    Sexp.List (atom name :: f []) :: []
   | head :: rest -> head :: update_or_create name f rest
 
 (* [package_name xs] returns the value of the (name foo) item in [xs]. *)
 let package_name =
   List.find_map (function
-      | Dune_lang.List [Atom (A "name"); Atom (A name)] -> Some name
+      | Sexp.List [Atom "name"; Atom name] -> Some name
       | _ -> None
     )
 
 let rec simplify_and = function
-  | Dune_lang.List [Atom (A "and"); x] -> x
-  | Dune_lang.List xs -> List (List.map simplify_and xs)
+  | Sexp.List [Atom "and"; x] -> x
+  | Sexp.List xs -> List (List.map simplify_and xs)
   | x -> x
 
 (* (foo)         -> foo
    (foo (and x)) -> (foo x)
 *)
 let simplify = function
-  | Dune_lang.List [Atom _ as x] -> x
-  | Dune_lang.List xs -> List (List.map simplify_and xs)
+  | Sexp.List [Atom _ as x] -> x
+  | Sexp.List xs -> List (List.map simplify_and xs)
   | x -> x
 
 let rec remove_with_test = function
   | [] -> []
-  | Dune_lang.Atom (A ":with-test") :: xs -> xs
+  | Sexp.Atom ":with-test" :: xs -> xs
   | List x :: xs -> List (remove_with_test x) :: remove_with_test xs
   | x :: xs -> x :: remove_with_test xs
 
 let apply_change items = function
   | `Add_build_dep dep ->
-    let item = Dune_lang.(List [atom (OpamPackage.name_to_string dep);
+    let item = Sexp.(List [atom (OpamPackage.name_to_string dep);
                                 lower_bound (OpamPackage.version dep)]) in
     item :: items
   | `Add_test_dep dep ->
-    let item = Dune_lang.(List [atom (OpamPackage.name_to_string dep);
+    let item = Sexp.(List [atom (OpamPackage.name_to_string dep);
                                 dune_and
                                   (lower_bound (OpamPackage.version dep))
                                   (atom ":with-test")
@@ -83,10 +81,10 @@ let apply_change items = function
   | `Add_with_test name ->
     let name = OpamPackage.Name.to_string name in
     items |> List.map (function
-        | Dune_lang.List [Atom (A name2) as a; expr] when name = name2 ->
-          Dune_lang.List [a; dune_and (atom ":with-test") expr]
-        | Atom (A name2) as a when name = name2 ->
-          Dune_lang.List [a; atom ":with-test"]
+        | Sexp.List [Atom name2 as a; expr] when name = name2 ->
+          Sexp.List [a; dune_and (atom ":with-test") expr]
+        | Atom name2 as a when name = name2 ->
+          Sexp.List [a; atom ":with-test"]
         | x -> x
       )
 
@@ -108,7 +106,7 @@ let write_project_file t =
   let path = "dune-project" in
   let ch = open_out path in
   let f = Format.formatter_of_out_channel ch in
-  Fmt.pf f "@[<v>%a@]@." (Fmt.list ~sep:Fmt.cut (Fmt.using Dune_lang.pp Stdune.Pp.to_fmt)) t;
+  Fmt.pf f "@[<v>%a@]@." (Fmt.list ~sep:Fmt.cut Sexp.pp) t;
   close_out ch;
   Fmt.pr "Wrote %S@." path
 
@@ -194,28 +192,19 @@ module Deps = struct
     | sexp -> parse ~pkg (Sexplib.Sexp.of_string sexp)
 end
 
-module Csexp = struct
-  type t =
-    | Atom of string
-    | List of t list
-end
-
-module Sexp = Dune_csexp.Csexp.Make(Csexp)
 module Library_map = Map.Make(String)
-
-open Csexp
 
 type index = [`Internal | `External] Library_map.t
 
 let rec field name = function
   | [] -> Fmt.failwith "Field %S is missing!" name
-  | List [Atom n; v] :: _ when n = name -> v
+  | Sexp.List [Atom n; v] :: _ when n = name -> v
   | _ :: xs -> field name xs
 
 let field_atom name xs =
   match field name xs with
   | Atom a -> a
-  | List _ -> Fmt.failwith "Expected %S to be an atom!" name
+  | Sexp.List _ -> Fmt.failwith "Expected %S to be an atom!" name
 
 let field_bool name xs =
   bool_of_string (field_atom name xs)
@@ -226,20 +215,20 @@ let index_lib acc fields =
   Library_map.add name local acc
 
 let index_item acc = function
-  | List [Atom "library"; List fields] -> index_lib acc fields
+  | Sexp.List [Atom "library"; List fields] -> index_lib acc fields
   | _ -> acc
 
 let make_index = function
-  | List libs -> List.fold_left index_item Library_map.empty libs
+  | Sexp.List libs -> List.fold_left index_item Library_map.empty libs
   | Atom _ -> failwith "Bad 'dune describe' output!"
 
 let describe () =
   Bos.OS.Cmd.run_out (Bos.Cmd.(v "dune" % "describe" % "--format=csexp" % "--lang=0.1"))
   |> Bos.OS.Cmd.to_string
   |> or_die
-  |> Sexp.parse_string
-  |> function
-  | Error (_, e) -> Fmt.failwith "Error parsing 'dune describe' output: %s" e
-  | Ok x -> make_index x
+  |> (fun s ->
+      try Sexp.of_string s with
+      | Sexp.Parse_error _ as e -> Fmt.pr "Error parsing 'dune describe' output:\n"; raise e)
+  |> make_index
 
 let lookup = Library_map.find_opt
