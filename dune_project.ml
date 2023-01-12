@@ -113,12 +113,11 @@ let write_project_file t =
 module Deps = struct
   type t = Dir_set.t Libraries.t
 
-  (*  We use [tmp_dir] so that "--only-packages" doesn't invalidate the existing build. *)
-  let dune_external_lib_deps ~tmp_dir ~pkg ~target =
-    let tmp_dir = Fpath.to_string tmp_dir in
-    Bos.Cmd.(v "dune" % "build" % "--external-lib-deps=sexp" % "--only-packages" % pkg
-             % "--build-dir" % tmp_dir
-             % target)
+  let or_die = function
+  | Ok x -> x
+  | Error (`Msg m) -> failwith m
+
+  let dune_external_lib_deps = Bos.Cmd.(v "dune" % "describe" % "external-lib-deps")
 
   let has_dune_subproject = function
     | "." | "" -> false
@@ -140,56 +139,40 @@ module Deps = struct
       Hashtbl.add dir_types path r;
       r
 
-  let merge_dep ~pkg ~path acc = function
-    | Sexplib.Sexp.List (Atom lib :: _) ->
-      if Astring.String.take ~sat:((<>) '.') lib <> pkg then
-        let dirs = Libraries.find_opt lib acc |> Option.value ~default:Dir_set.empty in
-        Libraries.add lib (Dir_set.add path dirs) acc
-      else
-        acc
-    | x -> Fmt.failwith "Bad output from 'dune external-lib-deps': %a" Sexplib.Sexp.pp_hum x
+  let get_dune_items dir_types ~sexp ~pkg ~target =
+    Dune_items.items_of_sexp sexp
+    |> List.filter (fun item ->
+        match (item,target) with
+        | Dune_items.Tests _, `Install -> false
+        | Dune_items.Tests _, `Runtest -> true
+        | _ , `Runtest -> false
+        | _, `Install -> true)
+    |> List.map Dune_items.get_item
+    |> List.filter (fun (item:Dune_items.Item.t) -> should_use_dir ~dir_types item.source_dir)
+    |> List.filter (fun (item:Dune_items.Item.t) -> Option.equal String.equal (Some pkg) item.package)
 
-  (* Dune sometimes gives made-up paths. Search upwards until we find a real directory. *)
-  let rec find_real_dir = function
-    | ".ppx" -> "(ppx)"
-    | path ->
-      match Unix.stat path with
-      | _ -> path
-      | exception Unix.Unix_error(Unix.ENOENT, _, _) ->
-        let parent = Filename.dirname path in
-        if parent <> path then find_real_dir parent
-        else path
+  let lib_deps sexp ~pkg ~target =
+    get_dune_items (Hashtbl.create 10) ~sexp ~pkg ~target
+    |> List.fold_left (fun acc (item:Dune_items.Item.t) ->
+        List.map (fun dep -> (fst dep, item.source_dir)) item.external_deps @ acc) []
+    |> List.fold_left (fun acc (lib,path) ->
+        if Astring.String.take ~sat:((<>) '.') lib <> pkg then
+          let dirs = Libraries.find_opt lib acc |> Option.value ~default:Dir_set.empty in
+          Libraries.add lib (Dir_set.add path dirs) acc
+        else
+          acc) Libraries.empty
 
-  let merge_dir ~pkg ~dir_types acc = function
-    | Sexplib.Sexp.List [Atom path; List deps] ->
-      let path = find_real_dir path in
-      if should_use_dir ~dir_types path then (
-        (* Fmt.pr "Process %S@." path; *)
-        List.fold_left (merge_dep ~pkg ~path) acc deps
-      ) else (
-        (* Fmt.pr "Skip %S@." path; *)
-        acc
-      )
-    | x -> Fmt.failwith "Bad output from 'dune external-lib-deps': %a" Sexplib.Sexp.pp_hum x
-
-  let parse ~pkg = function
-    | Sexplib.Sexp.List [Atom _ctx; List dirs] ->
-      let dir_types = Hashtbl.create 10 in
-      List.fold_left (merge_dir ~pkg ~dir_types) Libraries.empty dirs
-    | x -> Fmt.failwith "Bad output from 'dune external-lib-deps': %a" Sexplib.Sexp.pp_hum x
-
-  (* Get the ocamlfind dependencies of [pkg]. *)
-  let get_external_lib_deps ~pkg ~target : t =
-    Bos.OS.Dir.with_tmp "opam-dune-lint-%s" (fun tmp_dir () ->
-        Bos.OS.Cmd.run_out (dune_external_lib_deps ~tmp_dir ~pkg ~target)
-        |> Bos.OS.Cmd.to_string
-        |> or_die
-      ) ()
+  let sexp =
+    Bos.OS.Cmd.run_out (dune_external_lib_deps)
+    |> Bos.OS.Cmd.to_string
     |> or_die
     |> String.trim
-    |> function
-    | "" -> Libraries.empty
-    | sexp -> parse ~pkg (Sexplib.Sexp.of_string sexp)
+    |> (fun s ->
+        try Sexp.of_string s with
+        | Sexp.Parse_error _ as e -> Fmt.pr "Error parsing 'dune describe external-lib-deps' output:\n"; raise e)
+
+  let get_external_lib_deps ~pkg ~target : t = sexp |> lib_deps ~pkg ~target
+
 end
 
 module Library_map = Map.Make(String)

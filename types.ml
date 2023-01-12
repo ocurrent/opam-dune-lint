@@ -4,6 +4,8 @@ module Paths = Map.Make(String)
 
 module Libraries = Map.Make(String)
 
+module Dir_map = Map.Make(String)
+
 module Sexp = Sexplib.Sexp
 
 module Stdune = Stdune

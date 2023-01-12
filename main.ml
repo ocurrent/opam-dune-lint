@@ -79,8 +79,8 @@ let display path (_opam, problems) =
     pp_problems problems
 
 let generate_report ~project ~index ~opam pkg =
-  let build = get_libraries ~pkg ~target:"@install" |> to_opam_set ~project ~index in
-  let test = get_libraries ~pkg ~target:"@runtest" |> to_opam_set ~project ~index in
+  let build = get_libraries ~pkg ~target:`Install |> to_opam_set ~project ~index in
+  let test = get_libraries ~pkg ~target:`Runtest |> to_opam_set ~project ~index in
   let opam_deps =
     OpamFormula.And (OpamFile.OPAM.depends opam, OpamFile.OPAM.depopts opam)
     |> Formula.classify in
