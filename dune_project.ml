@@ -2,6 +2,10 @@ open Types
 
 type t = Sexp.t list
 
+let or_die = function
+  | Ok x -> x
+  | Error (`Msg m) -> failwith m
+
 let atom s = Sexp.Atom s
 let dune_and x y =  Sexp.(List [atom "and"; x; y])
 let lower_bound v = Sexp.(List [atom ">="; atom (OpamPackage.Version.to_string v)])
@@ -98,20 +102,23 @@ let update (changes:(_ * Change.t list) Paths.t) (t:t) =
   in
   List.map (map_if "package" update_package) t
 
+let dune_format dune =
+  Bos.OS.Cmd.(in_string dune |>  run_io Bos.Cmd.(v "dune" % "format-dune-file") |> out_string)
+  |> Bos.OS.Cmd.success
+  |> or_die
+
 let write_project_file t =
   let path = "dune-project" in
   let ch = open_out path in
   let f = Format.formatter_of_out_channel ch in
   Fmt.pf f "@[<v>%a@]@." (Fmt.list ~sep:Fmt.cut Sexp.pp) t;
+  Fmt.str "%a" (Fmt.list ~sep:Fmt.cut Sexp.pp) t |> dune_format |> Fmt.pf f "%s";
+  flush ch;
   close_out ch;
   Fmt.pr "Wrote %S@." path
 
 module Deps = struct
   type t = Dir_set.t Libraries.t
-
-  let or_die = function
-  | Ok x -> x
-  | Error (`Msg m) -> failwith m
 
   let dune_external_lib_deps = Bos.Cmd.(v "dune" % "describe" % "external-lib-deps")
 
