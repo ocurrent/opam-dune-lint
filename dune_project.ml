@@ -145,7 +145,13 @@ module Deps = struct
         | _, `Install -> true)
     |> List.map Dune_items.get_item
     |> List.filter (fun (item:Dune_items.Item.t) -> should_use_dir ~dir_types item.source_dir)
-    |> List.filter (fun (item:Dune_items.Item.t) -> Option.equal String.equal (Some pkg) item.package)
+    |> List.filter (fun (item:Dune_items.Item.t) ->
+        if target = `Install then
+          Option.equal String.equal (Some pkg) item.package
+        else
+          Option.equal String.equal (Some pkg) item.package || Option.is_none item.package)
+          (* if an item has not package, we assume it's used for testing*)
+
 
   let lib_deps sexp ~pkg ~target =
     get_dune_items (Hashtbl.create 10) ~sexp ~pkg ~target
