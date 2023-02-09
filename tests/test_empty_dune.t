@@ -40,12 +40,22 @@ Check that all the libraries get added:
 
   $ cat dune-project | sed 's/= [^)}]*/= */g'
   (lang dune 2.7)
+  
   (generate_opam_files true)
+  
   (package
    (name test)
    (synopsis "Test package")
    (depends
-    (opam-state (and (>= *) :with-test))
-    (bos (and (>= *) :with-test))
-    (ocamlfind (>= *))
-    (fmt (>= *))))
+    (opam-state
+     (and
+      (>= *)
+      :with-test))
+    (bos
+     (and
+      (>= *)
+      :with-test))
+    (ocamlfind
+     (>= *))
+    (fmt
+     (>= *))))

@@ -26,8 +26,6 @@ Create a simple dune project:
   $ touch main.ml test.ml
   $ dune build
 
-Replace all version numbers with "1.0" to get predictable output.
-
   $ export OPAM_DUNE_LINT_TESTS=y
 
 Check that the missing libraries are detected:
@@ -53,15 +51,25 @@ Check that the missing libraries get added:
 
   $ cat dune-project | sed 's/= [^)}]*/= */g'
   (lang dune 2.7)
+  
   (generate_opam_files true)
+  
   (package
    (name test)
    (synopsis "Test package")
    (depends
-    (opam-state (and (>= *) :with-test))
-    (bos (and (>= *) :with-test))
-    (fmt (>= *))
-    (ocamlfind (>= *))
+    (opam-state
+     (and
+      (>= *)
+      :with-test))
+    (bos
+     (and
+      (>= *)
+      :with-test))
+    (fmt
+     (>= *))
+    (ocamlfind
+     (>= *))
     libfoo))
 
 Check adding and removing of test markers:
@@ -92,15 +100,21 @@ Check adding and removing of test markers:
 
   $ cat dune-project | sed 's/= [^)}]*/= */g'
   (lang dune 2.7)
+  
   (generate_opam_files true)
+  
   (package
    (name test)
    (synopsis "Test package")
    (depends
     (opam-state :with-test)
-    (bos (and :with-test (>= *)))
+    (bos
+     (and
+      :with-test
+      (>= *)))
     fmt
-    (ocamlfind (>= *))
+    (ocamlfind
+     (>= *))
     libfoo))
 
   $ opam-dune-lint

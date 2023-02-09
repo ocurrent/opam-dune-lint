@@ -111,7 +111,6 @@ let write_project_file t =
   let path = "dune-project" in
   let ch = open_out path in
   let f = Format.formatter_of_out_channel ch in
-  Fmt.pf f "@[<v>%a@]@." (Fmt.list ~sep:Fmt.cut Sexp.pp) t;
   Fmt.str "%a" (Fmt.list ~sep:Fmt.cut Sexp.pp) t |> dune_format |> Fmt.pf f "%s";
   flush ch;
   close_out ch;

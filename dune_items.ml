@@ -51,10 +51,10 @@ let string_of_external_dep_sexp = function
 let decode_item =
   List.fold_left (fun (item:Item.t) sexps ->
       match sexps with
-      | Sexp.List [Atom "name"; Atom n] -> {item with names = [n]}
-      | Sexp.List [Atom "package"; Atom p] -> {item with package = Some p}
+      | Sexp.List [Atom "package"; List [Atom p] ] -> {item with package = Some p}
+      | Sexp.List [Atom "package"; List [] ]  -> {item with package = None}
       | Sexp.List [Atom "source_dir"; Atom s] -> {item with source_dir = s}
-      | Sexp.List [Atom "names"; List sexps] ->
+      | Sexp.List [Atom "names"; List sexps]  ->
          {item with names = List.map string_of_atom sexps}
       | Sexp.List [Atom "external_deps" ; List sexps] ->
         {item with external_deps = List.map string_of_external_dep_sexp sexps}

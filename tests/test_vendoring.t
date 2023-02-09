@@ -54,9 +54,8 @@ Replace all version numbers with "1.0" to get predictable outut.
 Check configuration:
 
   $ dune external-lib-deps -p main @install
-  These are the external library dependencies in the default context:
-  - bos
-  - findlib
+  dune: This subcommand is no longer implemented.
+  [1]
 
 Check that the missing findlib for "lib" is detected, but not "vendored"'s dependency
 on "bos":
