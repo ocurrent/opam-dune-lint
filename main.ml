@@ -42,8 +42,7 @@ let to_opam ~index lib =
       Some (OpamPackage.create (OpamPackage.Name.of_string lib) (OpamPackage.Version.of_string "0"))
 
 (* Convert a map of (ocamlfind-library -> hints) to a map of (opam-package -> hints). *)
-let to_opam_set ~project ~index libs =
-  let libs = libs |> Libraries.filter (fun lib _ -> Dune_project.lookup lib project <> Some `Internal) in
+let to_opam_set ~index libs =
   Libraries.fold (fun lib dirs acc ->
       match to_opam ~index lib with
       | Some pkg -> OpamPackage.Map.update pkg (Dir_set.union dirs) Dir_set.empty acc
@@ -78,9 +77,9 @@ let display path (_opam, problems) =
     Fmt.(styled `Bold string) pkg
     pp_problems problems
 
-let generate_report ~project ~index ~opam pkg =
-  let build = get_libraries ~pkg ~target:`Install |> to_opam_set ~project ~index in
-  let test = get_libraries ~pkg ~target:`Runtest |> to_opam_set ~project ~index in
+let generate_report ~index ~opam pkg =
+  let build = get_libraries ~pkg ~target:`Install |> to_opam_set ~index in
+  let test = get_libraries ~pkg ~target:`Runtest |> to_opam_set ~index in
   let opam_deps =
     OpamFormula.And (OpamFile.OPAM.depends opam, OpamFile.OPAM.depopts opam)
     |> Formula.classify in
@@ -144,9 +143,8 @@ let main force dir =
   if Paths.is_empty opam_files then failwith "No *.opam files found!";
   let stale_files = Paths.merge check_identical old_opam_files opam_files in
   stale_files |> Paths.iter (fun path msg -> Fmt.pr "%s: %s after 'dune build @install'!@." path msg);
-  let project = Dune_project.describe () in
   opam_files |> Paths.mapi (fun path opam ->
-      (opam, generate_report ~project ~index ~opam (Filename.chop_suffix path ".opam"))
+      (opam, generate_report ~index ~opam (Filename.chop_suffix path ".opam"))
     )
   |> fun report ->
   Paths.iter display report;

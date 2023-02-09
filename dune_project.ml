@@ -6,10 +6,6 @@ let atom s = Sexp.Atom s
 let dune_and x y =  Sexp.(List [atom "and"; x; y])
 let lower_bound v = Sexp.(List [atom ">="; atom (OpamPackage.Version.to_string v)])
 
-let or_die = function
-  | Ok x -> x
-  | Error (`Msg m) -> failwith m
-
 let parse () =
   Stdune.Path.Build.(set_build_dir (Stdune.Path.Outside_build_dir.of_string (Sys.getcwd ())));
   Sexp.input_sexps (open_in "dune-project")
@@ -174,44 +170,3 @@ module Deps = struct
   let get_external_lib_deps ~pkg ~target : t = sexp |> lib_deps ~pkg ~target
 
 end
-
-module Library_map = Map.Make(String)
-
-type index = [`Internal | `External] Library_map.t
-
-let rec field name = function
-  | [] -> Fmt.failwith "Field %S is missing!" name
-  | Sexp.List [Atom n; v] :: _ when n = name -> v
-  | _ :: xs -> field name xs
-
-let field_atom name xs =
-  match field name xs with
-  | Atom a -> a
-  | Sexp.List _ -> Fmt.failwith "Expected %S to be an atom!" name
-
-let field_bool name xs =
-  bool_of_string (field_atom name xs)
-
-let index_lib acc fields =
-  let name = field_atom "name" fields in
-  let local = if field_bool "local" fields then `Internal else `External in
-  Library_map.add name local acc
-
-let index_item acc = function
-  | Sexp.List [Atom "library"; List fields] -> index_lib acc fields
-  | _ -> acc
-
-let make_index = function
-  | Sexp.List libs -> List.fold_left index_item Library_map.empty libs
-  | Atom _ -> failwith "Bad 'dune describe' output!"
-
-let describe () =
-  Bos.OS.Cmd.run_out (Bos.Cmd.(v "dune" % "describe" % "--format=csexp" % "--lang=0.1"))
-  |> Bos.OS.Cmd.to_string
-  |> or_die
-  |> (fun s ->
-      try Sexp.of_string s with
-      | Sexp.Parse_error _ as e -> Fmt.pr "Error parsing 'dune describe' output:\n"; raise e)
-  |> make_index
-
-let lookup = Library_map.find_opt
