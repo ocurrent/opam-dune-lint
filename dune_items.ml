@@ -6,7 +6,7 @@ module Kind = struct
   let merge x y =
     match (x, y) with
     | Required,_ | _, Required -> Required
-    | _ -> Optional
+    | Optional,Optional -> Optional
 end
 
 module Item = struct
@@ -27,21 +27,18 @@ module Item = struct
     }
 end
 
-open Sexp
-
 type t = Lib of Item.t | Exes of Item.t | Tests of Item.t
 
 let get_item = function
   | Lib item | Exes item | Tests item -> item
 
-
 let string_of_atom =
   function
-  | Atom s -> s
+  | Sexp.Atom s -> s
   | s -> Fmt.failwith "%s is an atom" (Sexp.to_string s)
 
 let string_of_external_dep_sexp = function
-  | List [Atom name; Atom kind] ->
+  | Sexp.List [Atom name; Atom kind] ->
     if String.equal "required" kind then
       (name, Kind.Required)
     else
@@ -52,9 +49,9 @@ let decode_item =
   List.fold_left (fun (item:Item.t) sexps ->
       match sexps with
       | Sexp.List [Atom "package"; List [Atom p] ] -> {item with package = Some p}
-      | Sexp.List [Atom "package"; List [] ]  -> {item with package = None}
+      | Sexp.List [Atom "package"; List [] ] -> {item with package = None}
       | Sexp.List [Atom "source_dir"; Atom s] -> {item with source_dir = s}
-      | Sexp.List [Atom "names"; List sexps]  ->
+      | Sexp.List [Atom "names"; List sexps] ->
          {item with names = List.map string_of_atom sexps}
       | Sexp.List [Atom "external_deps" ; List sexps] ->
         {item with external_deps = List.map string_of_external_dep_sexp sexps}
