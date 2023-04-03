@@ -1,0 +1,143 @@
+open Types
+open Dune_items
+
+type t = Dir_set.t Libraries.t
+
+let dune_describe_external_lib_deps = Bos.Cmd.(v "dune" % "describe" % "external-lib-deps")
+
+let dune_describe_entries = Bos.Cmd.(v "dune" % "describe" % "package-entries")
+
+let sexp cmd =
+  Bos.OS.Cmd.run_out (cmd)
+  |> Bos.OS.Cmd.to_string
+  |> or_die
+  |> String.trim
+  |> (fun s ->
+      try Sexp.of_string s with
+      | Sexp.Parse_error _ as e -> Fmt.pr "Error parsing 'dune describe external-lib-deps' output:\n"; raise e)
+
+let sexp_describe_external_lib_deps =  sexp  dune_describe_external_lib_deps
+
+let sexp_describe_entries = sexp dune_describe_entries
+
+let has_dune_subproject = function
+  | "." | "" -> false
+  | dir -> Sys.file_exists (Filename.concat dir "dune-project")
+
+let rec should_use_dir ~dir_types path =
+  match Hashtbl.find_opt dir_types path with
+  | Some x -> x
+  | None ->
+    let r =
+      match Astring.String.cut ~sep:"/" ~rev:true path with
+      | Some (parent, _) ->
+        if should_use_dir ~dir_types parent then (
+          not (has_dune_subproject path)
+        ) else false
+      | None ->
+        not (has_dune_subproject path)
+    in
+    Hashtbl.add dir_types path r;
+    r
+(* TODO When a private executable name is not directly found*)
+let find_exe_name _pkg item  = item
+
+(* After the items are filtered, we need to include their internal_deps in order to reach all the deps*)
+let add_internal_deps d_items items_pkg =
+  let open Describe_external_lib in
+  let get_name = function
+    | Lib item  -> String.cat item.name ".lib"
+    | Exe item  -> String.cat item.name ".exe"
+    | Test item -> String.cat item.name ".test"
+  in
+  let items_lib =
+    d_items
+    |> List.filter is_lib_item
+    |> List.map get_item
+    |> List.map (fun (item:Describe_external_lib.item) ->
+        (String.cat item.name ".lib", Lib item))
+    |> List.to_seq |> Hashtbl.of_seq
+  in
+  let rec add_internal acc = function
+    | [] -> Hashtbl.to_seq_values acc |> List.of_seq
+    | item::tl ->
+      if Hashtbl.mem acc (get_name item) then
+        add_internal acc tl
+      else begin
+        Hashtbl.add acc (get_name item) item;
+        (get_item item).internal_deps
+        |> List.filter (fun (_, k) -> Kind.is_required k)
+        |> List.filter_map (fun (name, _) ->
+            match Hashtbl.find_opt items_lib (String.cat name ".lib") with
+            | None -> None
+            | Some item_lib -> Some item_lib)
+        |> fun internals -> add_internal acc (tl @ internals)
+      end
+  in
+  add_internal (Hashtbl.create 10) items_pkg
+
+let items_entries describe_external_lib ~dir_types ~pkg =
+  let exe_name_items =
+    let open Describe_external_lib in
+    describe_external_lib
+    |> List.filter Describe_external_lib.is_exe_item
+    |> List.map Describe_external_lib.get_item
+    |> List.map (fun item -> item.name)
+  in
+  let open Describe_entries in
+  Describe_entries.entries_of_sexp sexp_describe_entries
+  |> Describe_entries.items_bin_of_entries pkg
+  |> Item_map.filter (fun _ item -> should_use_dir ~dir_types item.source_dir)
+  |> Item_map.partition (fun _ item -> List.mem item.bin_name exe_name_items)
+  |> (fun (found, not_found) ->
+      Item_map.union
+        (fun _ _ _ -> Fmt.failwith "Not supposed to to have same name")
+        found (Item_map.map (find_exe_name pkg) not_found))
+
+let get_dune_items dir_types ~pkg ~target =
+  let describe_external =
+    Describe_external_lib.describe_extern_of_sexp sexp_describe_external_lib_deps
+  in
+  let items_entries = items_entries describe_external ~dir_types ~pkg in
+  describe_external
+  |> List.map (fun d_item ->
+      let item = Describe_external_lib.get_item d_item in
+      if Describe_external_lib.is_exe_item d_item
+         && Option.is_none item.package
+      then
+        match Item_map.find_opt item.name items_entries with
+        | None -> d_item
+        | Some _ -> Describe_external_lib.Exe { item with package = Some pkg }
+      else d_item)
+  |> List.filter (fun item ->
+      match (item,target) with
+      | Describe_external_lib.Test _, `Install -> false
+      | Describe_external_lib.Test _, `Runtest -> true
+      | _ , `Runtest -> false
+      | _, `Install -> true)
+  |> List.filter (fun d_item -> should_use_dir ~dir_types (Describe_external_lib.get_item d_item).source_dir)
+  |> (fun d_items ->
+      d_items
+      |> List.filter (fun d_item ->
+          let item = Describe_external_lib.get_item d_item in
+          (* if an item has not package, we assume it's used for testing*)
+          if target = `Install then
+            Option.equal String.equal (Some pkg) item.package
+          else
+            Option.equal String.equal (Some pkg) item.package || Option.is_none item.package)
+      |> add_internal_deps d_items)
+
+
+let lib_deps ~pkg ~target =
+  get_dune_items (Hashtbl.create 10) ~pkg ~target
+  |> List.map Describe_external_lib.get_item
+  |> List.fold_left (fun acc (item:Describe_external_lib.item) ->
+      List.map (fun dep -> (fst dep, item.source_dir)) item.external_deps @ acc) []
+  |> List.fold_left (fun acc (lib,path) ->
+      if Astring.String.take ~sat:((<>) '.') lib <> pkg then
+        let dirs = Libraries.find_opt lib acc |> Option.value ~default:Dir_set.empty in
+        Libraries.add lib (Dir_set.add path dirs) acc
+      else
+        acc) Libraries.empty
+
+let get_external_lib_deps ~pkg ~target : t = lib_deps ~pkg ~target

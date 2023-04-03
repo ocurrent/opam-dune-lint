@@ -1,10 +1,10 @@
 open Types
 
-type t = Sexp.t list
+module Deps = struct
+  include Deps
+end
 
-let or_die = function
-  | Ok x -> x
-  | Error (`Msg m) -> failwith m
+type t = Sexp.t list
 
 let atom s = Sexp.Atom s
 let dune_and x y =  Sexp.(List [atom "and"; x; y])
@@ -115,70 +115,3 @@ let write_project_file t =
   flush ch;
   close_out ch;
   Fmt.pr "Wrote %S@." path
-
-module Deps = struct
-  type t = Dir_set.t Libraries.t
-
-  let dune_external_lib_deps = Bos.Cmd.(v "dune" % "describe" % "external-lib-deps")
-
-  let has_dune_subproject = function
-    | "." | "" -> false
-    | dir -> Sys.file_exists (Filename.concat dir "dune-project")
-
-  let rec should_use_dir ~dir_types path =
-    match Hashtbl.find_opt dir_types path with
-    | Some x -> x
-    | None ->
-      let r =
-        match Astring.String.cut ~sep:"/" ~rev:true path with
-        | Some (parent, _) ->
-          if should_use_dir ~dir_types parent then (
-            not (has_dune_subproject path)
-          ) else false
-        | None ->
-          not (has_dune_subproject path)
-      in
-      Hashtbl.add dir_types path r;
-      r
-
-  let get_dune_items dir_types ~sexp ~pkg ~target =
-    Dune_items.items_of_sexp sexp
-    |> List.filter (fun item ->
-        match (item,target) with
-        | Dune_items.Tests _, `Install -> false
-        | Dune_items.Tests _, `Runtest -> true
-        | _ , `Runtest -> false
-        | _, `Install -> true)
-    |> List.map Dune_items.get_item
-    |> List.filter (fun (item:Dune_items.Item.t) -> should_use_dir ~dir_types item.source_dir)
-    |> List.filter (fun (item:Dune_items.Item.t) ->
-        if target = `Install then
-          Option.equal String.equal (Some pkg) item.package
-        else
-          Option.equal String.equal (Some pkg) item.package || Option.is_none item.package)
-          (* if an item has not package, we assume it's used for testing*)
-
-
-  let lib_deps sexp ~pkg ~target =
-    get_dune_items (Hashtbl.create 10) ~sexp ~pkg ~target
-    |> List.fold_left (fun acc (item:Dune_items.Item.t) ->
-        List.map (fun dep -> (fst dep, item.source_dir)) item.external_deps @ acc) []
-    |> List.fold_left (fun acc (lib,path) ->
-        if Astring.String.take ~sat:((<>) '.') lib <> pkg then
-          let dirs = Libraries.find_opt lib acc |> Option.value ~default:Dir_set.empty in
-          Libraries.add lib (Dir_set.add path dirs) acc
-        else
-          acc) Libraries.empty
-
-  let sexp =
-    Bos.OS.Cmd.run_out (dune_external_lib_deps)
-    |> Bos.OS.Cmd.to_string
-    |> or_die
-    |> String.trim
-    |> (fun s ->
-        try Sexp.of_string s with
-        | Sexp.Parse_error _ as e -> Fmt.pr "Error parsing 'dune describe external-lib-deps' output:\n"; raise e)
-
-  let get_external_lib_deps ~pkg ~target : t = sexp |> lib_deps ~pkg ~target
-
-end

@@ -6,6 +6,8 @@ module Libraries = Map.Make(String)
 
 module Dir_map = Map.Make(String)
 
+module Item_map = Map.Make(String)
+
 module Sexp = Sexplib.Sexp
 
 module Stdune = Stdune
@@ -54,3 +56,7 @@ module Change_with_hint = struct
 
   let remove_hint (t:t) = fst t
 end
+
+let or_die = function
+  | Ok x -> x
+  | Error (`Msg m) -> failwith m
