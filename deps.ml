@@ -42,15 +42,16 @@ let rec should_use_dir ~dir_types path =
 (* TODO When a private executable name is not directly found*)
 let find_exe_name _pkg item  = item
 
-(* After the items are filtered, we need to include their internal_deps in order to reach all the deps*)
-let add_internal_deps d_items items_pkg =
+(* After the items are filtered, we need to include their internal_deps in order to reach all the
+ * deps. If the internal dep is a public library we skip a recursive resolve*)
+let resolve_internal_deps d_items items_pkg =
   let open Describe_external_lib in
   let get_name = function
     | Lib item  -> String.cat item.name ".lib"
     | Exe item  -> String.cat item.name ".exe"
     | Test item -> String.cat item.name ".test"
   in
-  let items_lib =
+  let d_items_lib =
     d_items
     |> List.filter is_lib_item
     |> List.map get_item
@@ -68,9 +69,10 @@ let add_internal_deps d_items items_pkg =
         (get_item item).internal_deps
         |> List.filter (fun (_, k) -> Kind.is_required k)
         |> List.filter_map (fun (name, _) ->
-            match Hashtbl.find_opt items_lib (String.cat name ".lib") with
+            match Hashtbl.find_opt d_items_lib (String.cat name ".lib") with
             | None -> None
-            | Some item_lib -> Some item_lib)
+            | Some d_item_lib ->
+              if Option.is_some (get_item d_item_lib).package then None else Some d_item_lib)
         |> fun internals -> add_internal acc (tl @ internals)
       end
   in
@@ -125,7 +127,7 @@ let get_dune_items dir_types ~pkg ~target =
             Option.equal String.equal (Some pkg) item.package
           else
             Option.equal String.equal (Some pkg) item.package || Option.is_none item.package)
-      |> add_internal_deps d_items)
+      |> resolve_internal_deps d_items)
 
 
 let lib_deps ~pkg ~target =
