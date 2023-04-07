@@ -42,42 +42,6 @@ let rec should_use_dir ~dir_types path =
 (* TODO When a private executable name is not directly found*)
 let find_exe_name _pkg item  = item
 
-(* After the items are filtered, we need to include their internal_deps in order to reach all the
- * deps. If the internal dep is a public library we skip a recursive resolve*)
-let resolve_internal_deps d_items items_pkg =
-  let open Describe_external_lib in
-  let get_name = function
-    | Lib item  -> String.cat item.name ".lib"
-    | Exe item  -> String.cat item.name ".exe"
-    | Test item -> String.cat item.name ".test"
-  in
-  let d_items_lib =
-    d_items
-    |> List.filter is_lib_item
-    |> List.map get_item
-    |> List.map (fun (item:Describe_external_lib.item) ->
-        (String.cat item.name ".lib", Lib item))
-    |> List.to_seq |> Hashtbl.of_seq
-  in
-  let rec add_internal acc = function
-    | [] -> Hashtbl.to_seq_values acc |> List.of_seq
-    | item::tl ->
-      if Hashtbl.mem acc (get_name item) then
-        add_internal acc tl
-      else begin
-        Hashtbl.add acc (get_name item) item;
-        (get_item item).internal_deps
-        |> List.filter (fun (_, k) -> Kind.is_required k)
-        |> List.filter_map (fun (name, _) ->
-            match Hashtbl.find_opt d_items_lib (String.cat name ".lib") with
-            | None -> None
-            | Some d_item_lib ->
-              if Option.is_some (get_item d_item_lib).package then None else Some d_item_lib)
-        |> fun internals -> add_internal acc (tl @ internals)
-      end
-  in
-  add_internal (Hashtbl.create 10) items_pkg
-
 let items_entries describe_external_lib ~dir_types ~pkg =
   let exe_name_items =
     let open Describe_external_lib in
@@ -97,6 +61,44 @@ let items_entries describe_external_lib ~dir_types ~pkg =
         found (Item_map.map (find_exe_name pkg) not_found))
 
 let get_dune_items dir_types ~pkg ~target =
+  let resolve_internal_deps d_items items_pkg =
+    (* After the d_items are filtered to the corresponding package request,
+     * we need to include the internal_deps in order to reach all the deps.
+     * If the internal dep is a public library we skip a recursive resolve
+     * because it will be resolve with separate request*)
+    let open Describe_external_lib in
+    let get_name = function
+      | Lib item  -> String.cat item.name ".lib"
+      | Exe item  -> String.cat item.name ".exe"
+      | Test item -> String.cat item.name ".test"
+    in
+    let d_items_lib =
+      d_items
+      |> List.filter is_lib_item
+      |> List.map get_item
+      |> List.map (fun (item:Describe_external_lib.item) ->
+          (String.cat item.name ".lib", Lib item))
+      |> List.to_seq |> Hashtbl.of_seq
+    in
+    let rec add_internal acc = function
+      | [] -> Hashtbl.to_seq_values acc |> List.of_seq
+      | item::tl ->
+        if Hashtbl.mem acc (get_name item) then
+          add_internal acc tl
+        else begin
+          Hashtbl.add acc (get_name item) item;
+          (get_item item).internal_deps
+          |> List.filter (fun (_, k) -> Kind.is_required k)
+          |> List.filter_map (fun (name, _) ->
+              match Hashtbl.find_opt d_items_lib (String.cat name ".lib") with
+              | None -> None
+              | Some d_item_lib ->
+                if Option.is_some (get_item d_item_lib).package then None else Some d_item_lib)
+          |> fun internals -> add_internal acc (tl @ internals)
+        end
+    in
+    add_internal (Hashtbl.create 10) items_pkg
+  in
   let describe_external =
     Describe_external_lib.describe_extern_of_sexp sexp_describe_external_lib_deps
   in
@@ -104,8 +106,7 @@ let get_dune_items dir_types ~pkg ~target =
   describe_external
   |> List.map (fun d_item ->
       let item = Describe_external_lib.get_item d_item in
-      if Describe_external_lib.is_exe_item d_item
-         && Option.is_none item.package
+      if Describe_external_lib.is_exe_item d_item && Option.is_none item.package
       then
         match Item_map.find_opt item.name items_entries with
         | None -> d_item
