@@ -16,9 +16,13 @@ let sexp cmd =
       try Sexp.of_string s with
       | Sexp.Parse_error _ as e -> Fmt.pr "Error parsing 'dune describe external-lib-deps' output:\n"; raise e)
 
-let sexp_describe_external_lib_deps =  sexp  dune_describe_external_lib_deps
+let describe_external_lib_deps =
+  sexp dune_describe_external_lib_deps
+  |> Describe_external_lib.describe_extern_of_sexp
 
-let sexp_describe_entries = sexp dune_describe_entries
+let describe_entries =
+  sexp dune_describe_entries
+  |> Describe_entries.entries_of_sexp
 
 let has_dune_subproject = function
   | "." | "" -> false
@@ -39,32 +43,32 @@ let rec should_use_dir ~dir_types path =
     in
     Hashtbl.add dir_types path r;
     r
-(* TODO When a private executable name is not directly found*)
-let find_exe_name _pkg item  = item
 
-let items_entries describe_external_lib ~dir_types ~pkg =
-  let exe_name_items =
-    let open Describe_external_lib in
-    describe_external_lib
-    |> List.filter Describe_external_lib.is_exe_item
-    |> List.map Describe_external_lib.get_item
-    |> List.map (fun item -> item.name)
-  in
-  let open Describe_entries in
-  Describe_entries.entries_of_sexp sexp_describe_entries
-  |> Describe_entries.items_bin_of_entries pkg
-  |> Item_map.filter (fun _ item -> should_use_dir ~dir_types item.source_dir)
-  |> Item_map.partition (fun _ item -> List.mem item.bin_name exe_name_items)
-  |> (fun (found, not_found) ->
-      Item_map.union
-        (fun _ _ _ -> Fmt.failwith "Not supposed to to have same name")
-        found (Item_map.map (find_exe_name pkg) not_found))
+let copy_rules =
+  describe_external_lib_deps
+  |> List.map Describe_external_lib.get_item
+  |> List.map (fun (item:Describe_external_lib.item) -> String.cat item.source_dir "/dune")
+  |> List.map (Dune_rules.Copy_rules.get_copy_rules)
+  |> List.flatten
+  |> Dune_rules.Copy_rules.copy_rules_map
+
+let bin_of_entries = Describe_entries.items_bin_of_entries describe_entries
+
+let find_exe_item_package (item:Describe_external_lib.item) =
+  match item.package with
+  | Some p -> Some p
+  | None ->
+    (* Only allow for private executables to find the package *)
+    let bin_name =
+      Dune_rules.Copy_rules.find_dest_name ~name:(String.cat item.name ".exe") copy_rules
+    in
+    Option.map (fun (item:Describe_entries.item) -> item.package) (Item_map.find_opt bin_name bin_of_entries)
 
 let get_dune_items dir_types ~pkg ~target =
   let resolve_internal_deps d_items items_pkg =
     (* After the d_items are filtered to the corresponding package request,
      * we need to include the internal_deps in order to reach all the deps.
-     * If the internal dep is a public library we skip a recursive resolve
+     * If the internal dep is a public library we skip the recursive resolve
      * because it will be resolve with separate request*)
     let open Describe_external_lib in
     let get_name = function
@@ -99,18 +103,14 @@ let get_dune_items dir_types ~pkg ~target =
     in
     add_internal (Hashtbl.create 10) items_pkg
   in
-  let describe_external =
-    Describe_external_lib.describe_extern_of_sexp sexp_describe_external_lib_deps
-  in
-  let items_entries = items_entries describe_external ~dir_types ~pkg in
-  describe_external
+  describe_external_lib_deps
   |> List.map (fun d_item ->
       let item = Describe_external_lib.get_item d_item in
       if Describe_external_lib.is_exe_item d_item && Option.is_none item.package
       then
-        match Item_map.find_opt item.name items_entries with
-        | None -> d_item
-        | Some _ -> Describe_external_lib.Exe { item with package = Some pkg }
+        match find_exe_item_package item  with
+        | None ->  d_item
+        | Some pkg -> Describe_external_lib.Exe { item with package = Some pkg }
       else d_item)
   |> List.filter (fun item ->
       match (item,target) with

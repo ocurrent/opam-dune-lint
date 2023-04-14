@@ -1,3 +1,8 @@
+### Unreleased
+
+- Add support for dune 3.0 (@moyodiallo #46), the command `dune external-lib-deps` was remove from
+  dune
+
 ### v0.2
 
 - Cope with missing `(depends ...)` in `dune-project` (@talex5 #33). We tried to add the missing packages to an existing depends field, but if there wasn't one at all then we did nothing.

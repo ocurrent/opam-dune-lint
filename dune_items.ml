@@ -100,6 +100,7 @@ module Describe_entries = struct
     kind: string;
     dst: string;
     section: string;
+    package: string
   }
 
   let dump_item = {
@@ -108,6 +109,7 @@ module Describe_entries = struct
     kind = "";
     dst = "";
     section = "";
+    package = ""
   }
 
   type entry = Bin of item | Other of item
@@ -121,13 +123,18 @@ module Describe_entries = struct
 
   (* With "default/lib/bin.exe" or "default/lib/bin.bc.js" gives bin, it gives "bin" *)
   let bin_name s =
-    Str.split (Str.regexp "/") s
-    |> List.rev |> List.hd
-    |> Str.split (Str.regexp "\\.")
-    |> List.hd
+    Astring.String.cut ~sep:"/" ~rev:true s
+    |> Option.map snd |> Option.get
+    (* |> Option.map (Astring.String.cut ~sep:"." ~rev:false) |> Option.join *)
+    (* |> Option.get |> fst *)
 
-  let source_dir s = Str.split (Str.regexp "[A-za-z0-9]+\\.exe") s |> List.hd
-  (* With "defautl/lib/bin.exe", it gives "default/lib/" *)
+  (* With "defautl/lib/bin.exe", it gives "default/lib" *)
+  let source_dir s =
+    Astring.String.cut ~sep:"/" ~rev:true s
+    |> Option.map fst
+    |> Option.map (Astring.String.cut ~sep:"/" ~rev:false) |> Option.join
+    |> Option.map snd
+    |> function None -> "." | Some dir -> dir
 
   let decode_item sexps =
     List.fold_left (fun item sexps ->
@@ -152,13 +159,17 @@ module Describe_entries = struct
     | _ -> Fmt.failwith "Invalid format"
 
   let entries_of_sexp : Sexp.t -> t list = function
-    | Sexp.List sexps -> List.map decode_entries sexps
+    | Sexp.List sexps ->
+      List.map decode_entries sexps
+      |> List.map (fun (package, entries) ->
+          (package, List.map (function
+               | Bin item   -> Bin {item with package = package}
+               | Other item -> Other {item with package = package}) entries))
     | _ -> Fmt.failwith "Invalid format"
 
-  let items_bin_of_entries pkg describe_entries =
-    List.find_opt (fun (package, _) -> String.equal package pkg) describe_entries
-    |> (function
-       | Some (_, entries) -> List.filter_map (function Bin item -> Some item | Other _ -> None) entries
-       | None -> [])
+  let items_bin_of_entries describe_entries =
+    List.map snd describe_entries
+    |> List.flatten
+    |> List.filter_map (function Bin item -> Some item | Other _ -> None)
     |> List.map (fun item -> item.bin_name,item) |> List.to_seq |> Item_map.of_seq
 end
