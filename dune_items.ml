@@ -20,7 +20,8 @@ module  Describe_external_lib = struct
       package: string option;
       external_deps : (string * Kind.t) list;
       internal_deps : (string * Kind.t) list;
-      source_dir: string
+      source_dir: string;
+      extensions: string list
     }
 
   let dump_item =
@@ -29,7 +30,8 @@ module  Describe_external_lib = struct
       package = None;
       external_deps = [];
       internal_deps = [];
-      source_dir = ""
+      source_dir = "";
+      extensions = []
     }
 
   type t = Lib of item | Exe of item | Test of item
@@ -56,18 +58,25 @@ module  Describe_external_lib = struct
         (name, Kind.Optional)
     | s -> Fmt.failwith "%s is not 'List[Atom _; Atom _]'" (Sexp.to_string s)
 
-  let decode_item =
+  let decode_item sexps =
+    let items =
+      List.fold_left (fun items sexps ->
+        match sexps with
+        | Sexp.List [Atom "names"; List sexps] ->
+          List.map (fun name -> {dump_item with name = name}) (List.map string_of_atom sexps)
+        | _ -> items) [] sexps
+    in
     List.fold_left (fun items sexps ->
         match sexps with
+        | Sexp.List [Atom "names"; List _] -> items
         | Sexp.List [Atom "package"; List [Atom p] ] ->
           List.map (fun item -> {item with package = Some p}) items
         | Sexp.List [Atom "package"; List [] ] ->
           List.map (fun item -> {item with package = None}) items
         | Sexp.List [Atom "source_dir"; Atom s] ->
           List.map (fun item -> {item with source_dir = s}) items
-        | Sexp.List [Atom "names"; List sexps] ->
-          let item = List.hd items in
-          List.map (fun name -> {item with name = name}) (List.map string_of_atom sexps)
+        | Sexp.List [Atom "extensions" ; List sexps] ->
+          List.map (fun item -> {item with extensions = List.map string_of_atom sexps}) items
         | Sexp.List [Atom "external_deps" ; List sexps] ->
           List.map (fun item ->
               {item with external_deps = List.map string_of_list_dep_sexp sexps}) items
@@ -75,7 +84,7 @@ module  Describe_external_lib = struct
           List.map (fun item ->
               {item with internal_deps = List.map string_of_list_dep_sexp sexps}) items
         | s -> Fmt.failwith "%s is not a good format decoding an item" (Sexp.to_string s)
-      ) [dump_item]
+      ) items sexps
 
   let decode_items sexps : t list =
     sexps
@@ -121,12 +130,10 @@ module Describe_entries = struct
     | Sexp.Atom s -> s
     | s -> Fmt.failwith "%s is an atom" (Sexp.to_string s)
 
-  (* With "default/lib/bin.exe" or "default/lib/bin.bc.js" gives bin, it gives "bin" *)
+  (* With "default/lib/bin.exe" or "default/lib/bin.bc.js" gives bin, it gives "bin.exe" *)
   let bin_name s =
     Astring.String.cut ~sep:"/" ~rev:true s
     |> Option.map snd |> Option.get
-    (* |> Option.map (Astring.String.cut ~sep:"." ~rev:false) |> Option.join *)
-    (* |> Option.get |> fst *)
 
   (* With "defautl/lib/bin.exe", it gives "default/lib" *)
   let source_dir s =
@@ -150,8 +157,9 @@ module Describe_entries = struct
 
   let decode_items : Sexp.t list -> entry list =
     List.filter_map (function
-        | Sexp.List [Atom "user"; List sexps] -> Some (decode_item sexps)
-        | Sexp.List [Atom "dune"; List _] -> None
+        | Sexp.List [List [Atom "source"; Atom "user"]; List [Atom "entry"; List sexps]] -> Some (decode_item sexps)
+        | Sexp.List [List [Atom "entry"; List sexps]; List [Atom "source"; Atom "user"]] -> Some (decode_item sexps)
+        | Sexp.List [List [Atom "source"; Atom "dune"]; List _ ] -> None
         | s -> Fmt.failwith "%s is not a good format decoding items" (Sexp.to_string s))
 
   let decode_entries : Sexp.t -> t = function

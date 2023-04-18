@@ -59,10 +59,10 @@ let find_exe_item_package (item:Describe_external_lib.item) =
   | Some p -> Some p
   | None ->
     (* Only allow for private executables to find the package *)
-    let bin_name =
-      Dune_rules.Copy_rules.find_dest_name ~name:(String.cat item.name ".exe") copy_rules
-    in
-    Option.map (fun (item:Describe_entries.item) -> item.package) (Item_map.find_opt bin_name bin_of_entries)
+    item.extensions
+    |> List.find_map (fun extension ->
+        let bin_name = Dune_rules.Copy_rules.find_dest_name ~name:(item.name ^ extension) copy_rules in
+        Option.map (fun (item:Describe_entries.item) -> item.package) (Item_map.find_opt bin_name bin_of_entries))
 
 let get_dune_items dir_types ~pkg ~target =
   let resolve_internal_deps d_items items_pkg =
