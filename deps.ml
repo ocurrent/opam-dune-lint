@@ -46,10 +46,12 @@ let rec should_use_dir ~dir_types path =
 
 let copy_rules =
   describe_external_lib_deps
-  |> List.map Describe_external_lib.get_item
-  |> List.map (fun (item:Describe_external_lib.item) -> String.cat item.source_dir "/dune")
-  |> List.map (Dune_rules.Copy_rules.get_copy_rules)
-  |> List.flatten
+  |> List.concat_map
+    (fun d_item ->
+       d_item
+       |> Describe_external_lib.get_item
+       |> (fun (item:Describe_external_lib.item) -> item.source_dir ^ "/dune")
+       |> (Dune_rules.Copy_rules.get_copy_rules))
   |> Dune_rules.Copy_rules.copy_rules_map
 
 let bin_of_entries = Describe_entries.items_bin_of_entries describe_entries
@@ -72,16 +74,18 @@ let get_dune_items dir_types ~pkg ~target =
      * because it will be resolve with separate request*)
     let open Describe_external_lib in
     let get_name = function
-      | Lib item  -> String.cat item.name ".lib"
-      | Exe item  -> String.cat item.name ".exe"
-      | Test item -> String.cat item.name ".test"
+      | Lib item  -> item.name ^ ".lib"
+      | Exe item  -> item.name ^ ".exe"
+      | Test item -> item.name ^ ".test"
     in
     let d_items_lib =
       d_items
       |> List.filter is_lib_item
-      |> List.map get_item
-      |> List.map (fun (item:Describe_external_lib.item) ->
-          (String.cat item.name ".lib", Lib item))
+      |> List.map (fun d_item ->
+          d_item
+          |> get_item
+          |> (fun (item:Describe_external_lib.item) ->
+              (item.name ^ ".lib", Lib item)))
       |> List.to_seq |> Hashtbl.of_seq
     in
     let rec add_internal acc = function
@@ -94,7 +98,7 @@ let get_dune_items dir_types ~pkg ~target =
           (get_item item).internal_deps
           |> List.filter (fun (_, k) -> Kind.is_required k)
           |> List.filter_map (fun (name, _) ->
-              match Hashtbl.find_opt d_items_lib (String.cat name ".lib") with
+              match Hashtbl.find_opt d_items_lib (name ^ ".lib") with
               | None -> None
               | Some d_item_lib ->
                 if Option.is_some (get_item d_item_lib).package then None else Some d_item_lib)

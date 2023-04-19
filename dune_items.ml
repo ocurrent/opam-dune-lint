@@ -88,12 +88,11 @@ module  Describe_external_lib = struct
 
   let decode_items sexps : t list =
     sexps
-    |> List.map (function
+    |> List.concat_map (function
       | Sexp.List [Atom "library"; List sexps] -> decode_item sexps |> List.map (fun item -> Lib item)
       | Sexp.List [Atom "tests"; List sexps] -> decode_item sexps |> List.map (fun item -> Test item)
       | Sexp.List [Atom "executables"; List sexps] -> decode_item sexps |> List.map (fun item -> Exe item)
       | s -> Fmt.failwith "%s is not a good format decoding items" (Sexp.to_string s))
-    |> List.flatten
 
   let describe_extern_of_sexp : Sexp.t -> t list = function
     | Sexp.List [Atom _ctx; List sexps] -> decode_items sexps
@@ -138,9 +137,7 @@ module Describe_entries = struct
   (* With "defautl/lib/bin.exe", it gives "default/lib" *)
   let source_dir s =
     Astring.String.cut ~sep:"/" ~rev:true s
-    |> Option.map fst
-    |> Option.map (Astring.String.cut ~sep:"/" ~rev:false) |> Option.join
-    |> Option.map snd
+    |> Option.map fst |> Option.map (Astring.String.cut ~sep:"/" ~rev:false) |> Option.join |> Option.map snd
     |> function None -> "." | Some dir -> dir
 
   let decode_item sexps =
@@ -176,8 +173,9 @@ module Describe_entries = struct
     | _ -> Fmt.failwith "Invalid format"
 
   let items_bin_of_entries describe_entries =
-    List.map snd describe_entries
-    |> List.flatten
-    |> List.filter_map (function Bin item -> Some item | Other _ -> None)
-    |> List.map (fun item -> item.bin_name,item) |> List.to_seq |> Item_map.of_seq
+    List.concat_map snd describe_entries
+    |> List.filter_map (fun d_item ->
+        d_item
+        |> (function Bin item -> Some (item.bin_name,item) | Other _ -> None))
+    |> List.to_seq |> Item_map.of_seq
 end
