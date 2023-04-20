@@ -4,6 +4,8 @@ let or_die = function
   | Ok x -> x
   | Error (`Msg m) -> failwith m
 
+let dune_describe_opam_files = Bos.Cmd.(v "dune" % "describe" % "opam-files")
+
 let () =
   (* When run as a plugin, opam helpfully scrubs the environment.
      Get the settings back again. *)
@@ -21,9 +23,6 @@ let () =
         | x -> Fmt.epr "WARNING: bad sexp from opam config env: %a@." Sexplib.Sexp.pp_hum x
       )
   | x -> Fmt.epr "WARNING: bad sexp from opam config env: %a@." Sexplib.Sexp.pp_hum x
-
-let dune_build_install =
-  Bos.Cmd.(v "dune" % "build" %% (on (Unix.(isatty stderr)) (v "--display=progress")) % "@install")
 
 let get_libraries ~pkg ~target =
   Dune_project.Deps.get_external_lib_deps ~pkg ~target
@@ -57,6 +56,15 @@ let get_opam_files () =
       let opam = OpamFile.OPAM.read (OpamFile.make (OpamFilename.raw path)) in
       Paths.add path opam acc
     ) Paths.empty
+
+let updated_opam_files () =
+  sexp dune_describe_opam_files
+  |> Dune_items.Describe_opam_files.opam_files_of_sexp
+  |> List.fold_left (fun acc (path,opam) -> Paths.add path opam acc) Paths.empty
+
+let write_opam_files =
+  Paths.iter (fun path opam ->
+      OpamFile.OPAM.write (OpamFile.make (OpamFilename.raw path)) opam)
 
 let check_identical _path a b =
   match a, b with
@@ -138,8 +146,7 @@ let main force dir =
   Sys.chdir dir;
   let index = Index.create () in
   let old_opam_files = get_opam_files () in
-  Bos.OS.Cmd.run dune_build_install |> or_die;
-  let opam_files = get_opam_files () in
+  let opam_files = updated_opam_files () in
   if Paths.is_empty opam_files then failwith "No *.opam files found!";
   let stale_files = Paths.merge check_identical old_opam_files opam_files in
   stale_files |> Paths.iter (fun path msg -> Fmt.pr "%s: %s after 'dune build @install'!@." path msg);
@@ -159,7 +166,7 @@ let main force dir =
         project
         |> Dune_project.update report
         |> Dune_project.write_project_file;
-        Bos.OS.Cmd.run dune_build_install |> or_die;
+        updated_opam_files () |> write_opam_files;
       ) else (
         Paths.iter update_opam_file report
       )

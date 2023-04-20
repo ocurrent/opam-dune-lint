@@ -1,7 +1,7 @@
 ### Unreleased
 
-- Add support for dune 3.0 (@moyodiallo #46), the command `dune external-lib-deps` was remove from
-  dune
+- Add support for dune 3.0 , the command `dune external-lib-deps` was remove from
+  dune. Now, opam-dune-lint works without building anything (@moyodiallo #46).
 
 ### v0.2
 

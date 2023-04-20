@@ -179,3 +179,20 @@ module Describe_entries = struct
         |> (function Bin item -> Some (item.bin_name,item) | Other _ -> None))
     |> List.to_seq |> Item_map.of_seq
 end
+
+module Describe_opam_files = struct
+
+  type t = (string * OpamFile.OPAM.t ) list
+
+  let decode_items = function
+    | Sexp.List sexps ->
+      sexps
+      |> List.map (function
+          | Sexp.List [Atom opam_file; Atom opam_content] ->
+            (opam_file, OpamFile.OPAM.read_from_string opam_content)
+          | s -> Fmt.failwith "%s is not a good format decoding an item" (Sexp.to_string s))
+    | s -> Fmt.failwith "%s is not a good format decoding items" (Sexp.to_string s)
+
+  let opam_files_of_sexp = decode_items
+
+end

@@ -7,15 +7,6 @@ let dune_describe_external_lib_deps = Bos.Cmd.(v "dune" % "describe" % "external
 
 let dune_describe_entries = Bos.Cmd.(v "dune" % "describe" % "package-entries")
 
-let sexp cmd =
-  Bos.OS.Cmd.run_out (cmd)
-  |> Bos.OS.Cmd.to_string
-  |> or_die
-  |> String.trim
-  |> (fun s ->
-      try Sexp.of_string s with
-      | Sexp.Parse_error _ as e -> Fmt.pr "Error parsing 'dune describe external-lib-deps' output:\n"; raise e)
-
 let describe_external_lib_deps =
   sexp dune_describe_external_lib_deps
   |> Describe_external_lib.describe_extern_of_sexp

@@ -60,3 +60,13 @@ end
 let or_die = function
   | Ok x -> x
   | Error (`Msg m) -> failwith m
+
+let sexp cmd =
+  Bos.OS.Cmd.run_out (cmd)
+  |> Bos.OS.Cmd.to_string
+  |> or_die
+  |> String.trim
+  |> (fun s ->
+      try Sexp.of_string s with
+      | Sexp.Parse_error _ as e ->
+        Fmt.pr "Error parsing '%s' output:\n" (Bos.Cmd.to_string cmd); raise e)

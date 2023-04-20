@@ -26,9 +26,14 @@ Create a simple dune project and use "install" stanza:
   > (rule
   >  (target main-copy.exe)
   >  (deps
-  >  (package zombie))
+  >   (package zombie) main.exe)
   >  (action
-  >  (copy main.exe main-copy.exe)))
+  >   (copy main.exe main-copy.exe)))
+  > (rule
+  >  (alias runtest)
+  >  (deps
+  >   (package zombie))
+  >  (action (progn)))
   > (install
   >  (section bin)
   >  (package test)
