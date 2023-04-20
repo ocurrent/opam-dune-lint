@@ -3,16 +3,16 @@ open Dune_items
 
 type t = Dir_set.t Libraries.t
 
-let dune_describe_external_lib_deps = Bos.Cmd.(v "dune" % "describe" % "external-lib-deps")
+let dune_describe_external_lib_deps () = Bos.Cmd.(v "dune" % "describe" % "external-lib-deps")
 
-let dune_describe_entries = Bos.Cmd.(v "dune" % "describe" % "package-entries")
+let dune_describe_entries () = Bos.Cmd.(v "dune" % "describe" % "package-entries")
 
-let describe_external_lib_deps =
-  sexp dune_describe_external_lib_deps
+let describe_external_lib_deps () =
+  sexp @@ dune_describe_external_lib_deps ()
   |> Describe_external_lib.describe_extern_of_sexp
 
-let describe_entries =
-  sexp dune_describe_entries
+let describe_entries () =
+  sexp @@ dune_describe_entries ()
   |> Describe_entries.entries_of_sexp
 
 let has_dune_subproject = function
@@ -36,16 +36,17 @@ let rec should_use_dir ~dir_types path =
     r
 
 let copy_rules =
-  describe_external_lib_deps
+  describe_external_lib_deps ()
   |> List.concat_map
     (fun d_item ->
        d_item
        |> Describe_external_lib.get_item
-       |> (fun (item:Describe_external_lib.item) -> item.source_dir ^ "/dune")
+       |> (fun (item:Describe_external_lib.item) -> String.cat item.source_dir "/dune")
        |> (Dune_rules.Copy_rules.get_copy_rules))
   |> Dune_rules.Copy_rules.copy_rules_map
 
-let bin_of_entries = Describe_entries.items_bin_of_entries describe_entries
+let bin_of_entries =
+  Describe_entries.items_bin_of_entries @@ describe_entries ()
 
 let find_exe_item_package (item:Describe_external_lib.item) =
   match item.package with
@@ -54,51 +55,54 @@ let find_exe_item_package (item:Describe_external_lib.item) =
     (* Only allow for private executables to find the package *)
     item.extensions
     |> List.find_map (fun extension ->
-        let bin_name = Dune_rules.Copy_rules.find_dest_name ~name:(item.name ^ extension) copy_rules in
+        let bin_name = Dune_rules.Copy_rules.find_dest_name ~name:(String.cat item.name extension) copy_rules in
         Option.map (fun (item:Describe_entries.item) -> item.package) (Item_map.find_opt bin_name bin_of_entries))
 
-let get_dune_items dir_types ~pkg ~target =
-  let resolve_internal_deps d_items items_pkg =
-    (* After the d_items are filtered to the corresponding package request,
-     * we need to include the internal_deps in order to reach all the deps.
-     * If the internal dep is a public library we skip the recursive resolve
-     * because it will be resolve with separate request*)
-    let open Describe_external_lib in
-    let get_name = function
-      | Lib item  -> item.name ^ ".lib"
-      | Exe item  -> item.name ^ ".exe"
-      | Test item -> item.name ^ ".test"
-    in
-    let d_items_lib =
-      d_items
-      |> List.filter is_lib_item
-      |> List.map (fun d_item ->
+let resolve_internal_deps d_items items_pkg =
+  (* After the d_items are filtered to the corresponding package request,
+   * we need to include the internal_deps in order to reach all the deps.
+   * If the internal dep is a public library we skip the recursive resolve
+   * because it will be resolve with separate request*)
+  let open Describe_external_lib in
+  let get_name = function
+    | Lib item  -> String.cat item.name ".lib"
+    | Exe item  -> String.cat item.name ".exe"
+    | Test item -> String.cat item.name ".test"
+  in
+  let d_items_lib =
+    d_items
+    |> List.filter_map (fun d_item ->
+        match is_lib_item d_item with
+        | true ->
           d_item
           |> get_item
           |> (fun (item:Describe_external_lib.item) ->
-              (item.name ^ ".lib", Lib item)))
-      |> List.to_seq |> Hashtbl.of_seq
-    in
-    let rec add_internal acc = function
-      | [] -> Hashtbl.to_seq_values acc |> List.of_seq
-      | item::tl ->
-        if Hashtbl.mem acc (get_name item) then
-          add_internal acc tl
-        else begin
-          Hashtbl.add acc (get_name item) item;
-          (get_item item).internal_deps
-          |> List.filter (fun (_, k) -> Kind.is_required k)
-          |> List.filter_map (fun (name, _) ->
-              match Hashtbl.find_opt d_items_lib (name ^ ".lib") with
-              | None -> None
-              | Some d_item_lib ->
-                if Option.is_some (get_item d_item_lib).package then None else Some d_item_lib)
-          |> fun internals -> add_internal acc (tl @ internals)
-        end
-    in
-    add_internal (Hashtbl.create 10) items_pkg
+              (String.cat item.name ".lib", Lib item))
+          |> Option.some
+        | false -> None)
+    |> List.to_seq |> Hashtbl.of_seq
   in
-  describe_external_lib_deps
+  let rec add_internal acc = function
+    | [] -> Hashtbl.to_seq_values acc |> List.of_seq
+    | item::tl ->
+      if Hashtbl.mem acc (get_name item) then
+        add_internal acc tl
+      else begin
+        Hashtbl.add acc (get_name item) item;
+        (get_item item).internal_deps
+        |> List.filter_map (fun (name, k) ->
+            match Hashtbl.find_opt d_items_lib (String.cat name ".lib") with
+            | None -> None
+            | Some d_item_lib ->
+              if Kind.is_required k && Option.is_some (get_item d_item_lib).package then None
+              else Some d_item_lib)
+        |> fun internals -> add_internal acc (tl @ internals)
+      end
+  in
+  add_internal (Hashtbl.create 10) items_pkg
+
+let get_dune_items dir_types ~pkg ~target =
+  describe_external_lib_deps ()
   |> List.map (fun d_item ->
       let item = Describe_external_lib.get_item d_item in
       if Describe_external_lib.is_exe_item d_item && Option.is_none item.package
@@ -129,13 +133,13 @@ let get_dune_items dir_types ~pkg ~target =
 let lib_deps ~pkg ~target =
   get_dune_items (Hashtbl.create 10) ~pkg ~target
   |> List.map Describe_external_lib.get_item
-  |> List.fold_left (fun acc (item:Describe_external_lib.item) ->
-      List.map (fun dep -> (fst dep, item.source_dir)) item.external_deps @ acc) []
-  |> List.fold_left (fun acc (lib,path) ->
-      if Astring.String.take ~sat:((<>) '.') lib <> pkg then
-        let dirs = Libraries.find_opt lib acc |> Option.value ~default:Dir_set.empty in
-        Libraries.add lib (Dir_set.add path dirs) acc
-      else
-        acc) Libraries.empty
+  |> List.fold_left (fun libs (item:Describe_external_lib.item) ->
+      List.map (fun dep -> fst dep, item.source_dir) item.external_deps
+      |> List.fold_left (fun acc (lib,path) ->
+          if Astring.String.take ~sat:((<>) '.') lib <> pkg then
+            let dirs = Libraries.find_opt lib acc |> Option.value ~default:Dir_set.empty in
+            Libraries.add lib (Dir_set.add path dirs) acc
+          else
+            acc) libs) Libraries.empty
 
 let get_external_lib_deps ~pkg ~target : t = lib_deps ~pkg ~target

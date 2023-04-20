@@ -1,8 +1,6 @@
 open Types
 
-module Deps = struct
-  include Deps
-end
+module Deps = Deps
 
 type t = Sexp.t list
 
@@ -96,7 +94,7 @@ let update (changes:(_ * Change.t list) Paths.t) (t:t) =
     match package_name items with
     | None -> failwith "Missing 'name' in (package)!"
     | Some name ->
-      match Paths.find_opt (name ^ ".opam") changes with
+      match Paths.find_opt (String.cat name ".opam") changes with
       | None -> items
       | Some (_opam, changes) -> update_or_create "depends" (apply_changes ~changes) items
   in

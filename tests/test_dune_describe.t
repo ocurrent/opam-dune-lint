@@ -53,7 +53,7 @@ Create a simple dune project:
      ((names (test))
       (extensions
        (.bc .exe))
-      (package ())
+      (package (test))
       (source_dir .)
       (external_deps
        ((bos required)
