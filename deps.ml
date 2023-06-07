@@ -7,13 +7,15 @@ let dune_describe_external_lib_deps () = Bos.Cmd.(v "dune" % "describe" % "exter
 
 let dune_describe_entries () = Bos.Cmd.(v "dune" % "describe" % "package-entries")
 
-let describe_external_lib_deps () =
-  sexp @@ dune_describe_external_lib_deps ()
-  |> Describe_external_lib.describe_extern_of_sexp
+let describe_external_lib_deps =
+  Lazy.from_fun (fun _ ->
+      sexp @@ dune_describe_external_lib_deps ()
+      |> Describe_external_lib.describe_extern_of_sexp)
 
-let describe_entries () =
-  sexp @@ dune_describe_entries ()
-  |> Describe_entries.entries_of_sexp
+let describe_entries =
+  Lazy.from_fun (fun _ ->
+      sexp @@ dune_describe_entries ()
+      |> Describe_entries.entries_of_sexp)
 
 let has_dune_subproject = function
   | "." | "" -> false
@@ -35,8 +37,8 @@ let rec should_use_dir ~dir_types path =
     Hashtbl.add dir_types path r;
     r
 
-let copy_rules =
-  describe_external_lib_deps ()
+let copy_rules () =
+  Lazy.force describe_external_lib_deps
   |> List.concat_map
     (fun d_item ->
        d_item
@@ -45,8 +47,8 @@ let copy_rules =
        |> (Dune_rules.Copy_rules.get_copy_rules))
   |> Dune_rules.Copy_rules.copy_rules_map
 
-let bin_of_entries =
-  Describe_entries.items_bin_of_entries @@ describe_entries ()
+let bin_of_entries () =
+  Describe_entries.items_bin_of_entries @@ Lazy.force describe_entries
 
 let find_exe_item_package (item:Describe_external_lib.item) =
   match item.package with
@@ -55,8 +57,12 @@ let find_exe_item_package (item:Describe_external_lib.item) =
     (* Only allow for private executables to find the package *)
     item.extensions
     |> List.find_map (fun extension ->
-        let bin_name = Dune_rules.Copy_rules.find_dest_name ~name:(String.cat item.name extension) copy_rules in
-        Option.map (fun (item:Describe_entries.item) -> item.package) (Item_map.find_opt bin_name bin_of_entries))
+        let bin_name =
+          Dune_rules.Copy_rules.find_dest_name ~name:(String.cat item.name extension) @@ copy_rules ()
+        in
+        Option.map
+          (fun (item:Describe_entries.item) -> item.package)
+          (Item_map.find_opt bin_name @@ bin_of_entries ()))
 
 let resolve_internal_deps d_items items_pkg =
   (* After the d_items are filtered to the corresponding package request,
@@ -102,7 +108,7 @@ let resolve_internal_deps d_items items_pkg =
   add_internal (Hashtbl.create 10) items_pkg
 
 let get_dune_items dir_types ~pkg ~target =
-  describe_external_lib_deps ()
+  Lazy.force describe_external_lib_deps
   |> List.map (fun d_item ->
       let item = Describe_external_lib.get_item d_item in
       if Describe_external_lib.is_exe_item d_item && Option.is_none item.package
