@@ -76,8 +76,13 @@ module Copy_rules = struct
     | None -> Hashtbl.add rules file []; []
     | Some copy_rules -> copy_rules
 
-  let rec find_dest_name ~name rules =
+  let find_dest_name ~name rules =
+    let rec find_dest_name name rules =
+      match Item_map.find_opt name rules with
+      | None   -> Some name
+      | Some t -> find_dest_name t.to_name rules
+    in
     match Item_map.find_opt name rules with
-    | None   -> name
-    | Some t -> find_dest_name ~name:t.to_name rules
+    | None -> None (* Not found in the first step *)
+    | Some t -> find_dest_name t.to_name rules
 end

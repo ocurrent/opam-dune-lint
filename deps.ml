@@ -12,10 +12,11 @@ let describe_external_lib_deps =
       sexp @@ dune_describe_external_lib_deps ()
       |> Describe_external_lib.describe_extern_of_sexp)
 
-let describe_entries =
+let describe_bin_of_entries =
   Lazy.from_fun (fun _ ->
       sexp @@ dune_describe_entries ()
-      |> Describe_entries.entries_of_sexp)
+      |> Describe_entries.entries_of_sexp
+      |> Describe_entries.items_bin_of_entries)
 
 let has_dune_subproject = function
   | "." | "" -> false
@@ -47,22 +48,26 @@ let copy_rules () =
        |> (Dune_rules.Copy_rules.get_copy_rules))
   |> Dune_rules.Copy_rules.copy_rules_map
 
-let bin_of_entries () =
-  Describe_entries.items_bin_of_entries @@ Lazy.force describe_entries
+let bin_of_entries () = Lazy.force describe_bin_of_entries
 
-let find_exe_item_package (item:Describe_external_lib.item) =
+let is_bin_name_of_describe_lib bin_name (item:Describe_external_lib.item) =
+  item.extensions
+  |> List.exists (fun extension ->
+      String.equal bin_name (String.cat item.name extension))
+
+let find_package_of_exe (item:Describe_external_lib.item) =
   match item.package with
   | Some p -> Some p
   | None ->
     (* Only allow for private executables to find the package *)
     item.extensions
     |> List.find_map (fun extension ->
-        let bin_name =
-          Dune_rules.Copy_rules.find_dest_name ~name:(String.cat item.name extension) @@ copy_rules ()
-        in
         Option.map
-          (fun (item:Describe_entries.item) -> item.package)
-          (Item_map.find_opt bin_name @@ bin_of_entries ()))
+          (fun bin_name ->
+             Option.map
+               (fun (item:Describe_entries.item) -> item.package) (Item_map.find_opt bin_name @@ bin_of_entries ()))
+          (Dune_rules.Copy_rules.find_dest_name ~name:(String.cat item.name extension) @@ copy_rules ()))
+    |> Option.join
 
 let resolve_internal_deps d_items items_pkg =
   (* After the d_items are filtered to the corresponding package request,
@@ -113,10 +118,38 @@ let get_dune_items dir_types ~pkg ~target =
       let item = Describe_external_lib.get_item d_item in
       if Describe_external_lib.is_exe_item d_item && Option.is_none item.package
       then
-        match find_exe_item_package item  with
+        match find_package_of_exe item  with
         | None ->  d_item
         | Some pkg -> Describe_external_lib.Exe { item with package = Some pkg }
       else d_item)
+  |> (fun d_items ->
+      let exe_items =
+        d_items |> List.filter_map (function
+            | Describe_external_lib.Exe item -> Some item
+            | _ -> None)
+      in
+      let unresolved_entries =
+        bin_of_entries ()
+        |> Item_map.partition (fun _ (entry:Describe_entries.item) ->
+            exe_items
+            |> List.exists
+              (fun (item:Describe_external_lib.item) ->
+                 is_bin_name_of_describe_lib  entry.bin_name item
+                 && Option.equal String.equal (Some entry.package) item.package))
+        |> snd
+      in d_items, unresolved_entries)
+  |> (fun (d_items, unresolved_entries) ->
+      d_items
+      |> List.map (fun d_item ->
+          match d_item with
+          | Describe_external_lib.Exe item ->
+            item.extensions
+            |> List.find_map (fun extension ->
+                Item_map.find_opt (String.cat item.name extension) unresolved_entries)
+            |> (function
+                | None -> d_item
+                | Some entry -> Describe_external_lib.Exe { item with package = Some entry.package })
+          | d_item -> d_item))
   |> List.filter (fun item ->
       match (item,target) with
       | Describe_external_lib.Test _, `Install -> false
@@ -140,7 +173,8 @@ let lib_deps ~pkg ~target =
   get_dune_items (Hashtbl.create 10) ~pkg ~target
   |> List.map Describe_external_lib.get_item
   |> List.fold_left (fun libs (item:Describe_external_lib.item) ->
-      List.map (fun dep -> fst dep, item.source_dir) item.external_deps
+      List.map (fun dep ->
+          (fst dep, item.source_dir)) item.external_deps
       |> List.fold_left (fun acc (lib,path) ->
           if Astring.String.take ~sat:((<>) '.') lib <> pkg then
             let dirs = Libraries.find_opt lib acc |> Option.value ~default:Dir_set.empty in

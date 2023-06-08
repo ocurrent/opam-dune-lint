@@ -26,7 +26,9 @@ let () =
 
 let get_libraries ~pkg ~target =
   Dune_project.Deps.get_external_lib_deps ~pkg ~target
-  |> Libraries.add "dune" Dir_set.empty              (* We always need dune *)
+  |> fun libs ->
+      if String.equal pkg "dune" then libs
+      else Libraries.add "dune" Dir_set.empty libs          (* We always need dune *)
 
 let to_opam ~index lib =
   match Astring.String.take ~sat:((<>) '.') lib with
@@ -149,7 +151,7 @@ let main force dir =
   let opam_files = updated_opam_files () in
   if Paths.is_empty opam_files then failwith "No *.opam files found!";
   let stale_files = Paths.merge check_identical old_opam_files opam_files in
-  stale_files |> Paths.iter (fun path msg -> Fmt.pr "%s: %s after 'dune build @install'!@." path msg);
+  stale_files |> Paths.iter (fun path msg -> Fmt.pr "%s: %s after its upgrade from 'dune describe opam-files'!@." path msg);
   opam_files |> Paths.mapi (fun path opam ->
       (opam, generate_report ~index ~opam (Filename.chop_suffix path ".opam"))
     )
