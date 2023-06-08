@@ -70,9 +70,10 @@ module Copy_rules = struct
 
   let get_copy_rules file =
     match Hashtbl.find_opt rules file with
-    | None ->
+    | None when  Sys.file_exists file ->
       let copy_rules = copy_rules_of_sexp (sexp_of_file file) in
       Hashtbl.add rules file copy_rules; copy_rules
+    | None -> Hashtbl.add rules file []; []
     | Some copy_rules -> copy_rules
 
   let rec find_dest_name ~name rules =
