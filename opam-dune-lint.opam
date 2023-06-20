@@ -3,7 +3,7 @@ opam-version: "2.0"
 synopsis: "Ensure dune and opam dependencies are consistent"
 description:
   "opam-dune-lint checks that all ocamlfind libraries listed as dune dependencies have corresponding opam dependencies listed in the opam files. If not, it offers to add them (either to your opam files, or to your dune-project if you're generating your opam files from that)."
-maintainer: ["talex5@gmail.com"]
+maintainer: ["alpha@tarides.com" "Tim McGilchrist <timmcgil@gmail.com>"]
 authors: ["talex5@gmail.com"]
 license: "ISC"
 homepage: "https://github.com/ocurrent/opam-dune-lint"

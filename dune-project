@@ -4,7 +4,7 @@
 (generate_opam_files true)
 (source (github ocurrent/opam-dune-lint))
 (authors "talex5@gmail.com")
-(maintainers "talex5@gmail.com")
+(maintainers "alpha@tarides.com" "Tim McGilchrist <timmcgil@gmail.com>")
 (license ISC)
 (cram enable)
 (package
