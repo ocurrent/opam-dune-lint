@@ -108,6 +108,7 @@ module Describe_entries = struct
     kind: string;
     dst: string;
     section: string;
+    optional: string;
     package: string
   }
 
@@ -117,6 +118,7 @@ module Describe_entries = struct
     kind = "";
     dst = "";
     section = "";
+    optional = "";
     package = ""
   }
 
@@ -148,15 +150,16 @@ module Describe_entries = struct
         | Sexp.List [Atom "kind"; Atom p ]    -> {item with kind = p}
         | Sexp.List [Atom "dst"; Atom p ]     -> {item with dst = p}
         | Sexp.List [Atom "section"; Atom p ] -> {item with section = p}
+        | Sexp.List [Atom "optional"; Atom p ] -> {item with optional = p}
         | s -> Fmt.failwith "%s is not a good format decoding an item" (Sexp.to_string s)
       ) dump_item sexps
     |> (fun item -> match item.section with "BIN" -> Bin item | _ -> Other item)
 
   let decode_items : Sexp.t list -> entry list =
     List.filter_map (function
-        | Sexp.List [List [Atom "source"; Atom "user"]; List [Atom "entry"; List sexps]] -> Some (decode_item sexps)
-        | Sexp.List [List [Atom "entry"; List sexps]; List [Atom "source"; Atom "user"]] -> Some (decode_item sexps)
-        | Sexp.List [List [Atom "source"; Atom "dune"]; List _ ] -> None
+        | Sexp.List [List [Atom "source"; List [Atom "User" ; _ ]]; List [Atom "entry"; List sexps]] -> Some (decode_item sexps)
+        | Sexp.List [List [Atom "entry"; List sexps]; List [Atom "source"; Atom "User"]] -> Some (decode_item sexps)
+        | Sexp.List [List [Atom "source"; Atom "Dune"]; List _ ] -> None
         | s -> Fmt.failwith "%s is not a good format decoding items" (Sexp.to_string s))
 
   let decode_entries : Sexp.t -> t = function
