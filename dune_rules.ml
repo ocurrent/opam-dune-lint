@@ -5,7 +5,7 @@ module Copy_rules = struct
   let sexp_of_file file =
     try Sexp.load_sexps file with
     | Sexp.Parse_error _ as e ->
-      (Fmt.pr "Error parsing 'dune describe external-lib-deps' output:\n"; raise e)
+      (Fmt.pr "Error parsing 'dune file' output:\n"; raise e)
 
   type t =
     {
