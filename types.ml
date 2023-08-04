@@ -20,6 +20,21 @@ module Change = struct
     | `Add_test_dep of OpamPackage.t ]
 end
 
+module List = struct
+    include List
+    let concat_map f l = List.map f l |> List.flatten
+    let find_map f l =
+        let rec find f = function
+          | [] -> None
+          | x::tl -> let v = f x in if Option.is_some v then v else find f tl
+        in find f l
+end
+
+module String = struct
+    include String
+    let cat = (^)
+end
+
 module Change_with_hint = struct
   type t = Change.t * Dir_set.t
 
