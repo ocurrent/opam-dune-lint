@@ -73,7 +73,7 @@ let resolve_internal_deps d_items items_pkg =
   (* After the d_items are filtered to the corresponding package request,
    * we need to include the internal_deps in order to reach all the deps.
    * If the internal dep is a public library we skip the recursive resolve
-   * because it will be resolve with separate request*)
+   * because it will be resolve with separate request *)
   let open Describe_external_lib in
   let get_name = function
     | Lib item  -> String.cat item.name ".lib"
@@ -161,7 +161,7 @@ let get_dune_items dir_types ~pkg ~target =
       d_items
       |> List.filter (fun d_item ->
           let item = Describe_external_lib.get_item d_item in
-          (* if an item has not package, we assume it's used for testing*)
+          (* if an item has no package, we assume it's used for testing *)
           if target = `Install then
             Option.equal String.equal (Some pkg) item.package
           else

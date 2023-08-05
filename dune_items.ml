@@ -1,11 +1,10 @@
 open Types
 
-module  Describe_external_lib = struct
+module Describe_external_lib = struct
   module Kind = struct
     type t = Required | Optional
 
-    let merge x y =
-      match (x, y) with
+    let merge = function
       | Required,_ | _, Required -> Required
       | Optional,Optional -> Optional
 
@@ -45,8 +44,7 @@ module  Describe_external_lib = struct
   let is_lib_item = function
     | Lib _ -> true | _ -> false
 
-  let string_of_atom =
-    function
+  let string_of_atom = function
     | Sexp.Atom s -> s
     | s -> Fmt.failwith "%s is an atom" (Sexp.to_string s)
 
@@ -126,8 +124,7 @@ module Describe_entries = struct
 
   type t = string * entry list
 
-  let string_of_atom =
-    function
+  let string_of_atom = function
     | Sexp.Atom s -> s
     | s -> Fmt.failwith "%s is an atom" (Sexp.to_string s)
 
@@ -136,7 +133,7 @@ module Describe_entries = struct
     Astring.String.cut ~sep:"/" ~rev:true s
     |> Option.map snd |> Option.get
 
-  (* With "defautl/lib/bin.exe", it gives "default/lib" *)
+  (* With "default/lib/bin.exe", it gives "default/lib" *)
   let source_dir s =
     Astring.String.cut ~sep:"/" ~rev:true s
     |> Option.map fst |> Option.map (Astring.String.cut ~sep:"/" ~rev:false) |> Option.join |> Option.map snd
@@ -168,11 +165,11 @@ module Describe_entries = struct
 
   let entries_of_sexp : Sexp.t -> t list = function
     | Sexp.List sexps ->
-      List.map decode_entries sexps
-      |> List.map (fun (package, entries) ->
+      sexps
+      |> List.map (fun x -> decode_entries x |> (fun (package, entries) ->
           (package, List.map (function
                | Bin item   -> Bin {item with package = package}
-               | Other item -> Other {item with package = package}) entries))
+               | Other item -> Other {item with package = package}) entries)))
     | _ -> Fmt.failwith "Invalid format"
 
   let items_bin_of_entries describe_entries =
@@ -185,9 +182,14 @@ end
 
 module Describe_opam_files = struct
 
-  type t = (string * OpamFile.OPAM.t ) list
+  (** String representing an opam file name eg. foo.opam *)
+  type opam_file = string
 
-  let decode_items = function
+  (** Representing the name and the content of an opam file *)
+  type t = (opam_file * OpamFile.OPAM.t ) list
+
+  (** Decode opam files from the command "dune describe opam-files" output. *)
+  let opam_files_of_sexp = function
     | Sexp.List sexps ->
       sexps
       |> List.map (function
@@ -195,7 +197,5 @@ module Describe_opam_files = struct
             (opam_file, OpamFile.OPAM.read_from_string opam_content)
           | s -> Fmt.failwith "%s is not a good format decoding an item" (Sexp.to_string s))
     | s -> Fmt.failwith "%s is not a good format decoding items" (Sexp.to_string s)
-
-  let opam_files_of_sexp = decode_items
 
 end
