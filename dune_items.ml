@@ -183,19 +183,24 @@ end
 module Describe_opam_files = struct
 
   (** String representing an opam file name eg. foo.opam *)
-  type opam_file = string
+  type path = string
 
-  (** Representing the name and the content of an opam file *)
-  type t = (opam_file * OpamFile.OPAM.t ) list
+  (** String representing the content of an opam file *)
+  type content = string
+
+  (** Representing a list of name and content of an opam file *)
+  type t = (path * content) list
 
   (** Decode opam files from the command "dune describe opam-files" output. *)
   let opam_files_of_sexp = function
     | Sexp.List sexps ->
       sexps
       |> List.map (function
-          | Sexp.List [Atom opam_file; Atom opam_content] ->
-            (opam_file, OpamFile.OPAM.read_from_string opam_content)
+          | Sexp.List [Atom path; Atom content] ->
+            (path, content)
           | s -> Fmt.failwith "%s is not a good format decoding an item" (Sexp.to_string s))
     | s -> Fmt.failwith "%s is not a good format decoding items" (Sexp.to_string s)
+
+  let opamfile_of_content content = OpamFile.OPAM.read_from_string content
 
 end

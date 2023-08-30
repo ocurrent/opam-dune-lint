@@ -100,6 +100,18 @@ let update (changes:(_ * Change.t list) Paths.t) (t:t) =
   in
   List.map (map_if "package" update_package) t
 
+let packages t =
+  List.filter_map (function
+      | Sexp.List ((Atom "package")::sexps) ->
+        Option.some @@ List.filter_map (function
+            | Sexp.List [Atom "name"; Atom name] -> Some (name ^ ".opam")
+            | _ -> None) sexps
+      | _ -> None) t
+  |> List.flatten
+  |> fun v -> List.combine v v
+  |> List.to_seq
+  |> Libraries.of_seq
+
 let dune_format dune =
   Bos.OS.Cmd.(in_string dune |>  run_io Bos.Cmd.(v "dune" % "format-dune-file") |> out_string)
   |> Bos.OS.Cmd.success
