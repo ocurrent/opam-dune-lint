@@ -31,11 +31,7 @@ let () =
       )
   | x -> Fmt.epr "WARNING: bad sexp from opam config env: %a@." Sexplib.Sexp.pp_hum x
 
-let get_libraries ~pkg ~target =
-  Dune_project.Deps.get_external_lib_deps ~pkg ~target
-  |> fun libs ->
-      if String.equal pkg "dune" then libs
-      else Libraries.add "dune" Dir_set.empty libs          (* We always need dune *)
+let get_libraries ~pkg ~target = Dune_project.Deps.get_external_lib_deps ~pkg ~target
 
 let to_opam ~index lib =
   match Astring.String.take ~sat:((<>) '.') lib with
@@ -210,6 +206,15 @@ let main force dir =
       exit 1
     )
   );
+  let dune_version = Dune_project.version project in
+  get_opam_files ()
+  |> Paths.to_seq
+  |> List.of_seq
+  |> List.map (fun (path, opam) ->
+      let pkg_name = (OpamPackage.Name.of_string (Filename.chop_suffix path ".opam")) in
+      Dune_constraints.check_dune_constraints ~errors:[] ~dune_version pkg_name opam)
+  |> List.flatten
+  |> Dune_constraints.msg_of_errors;
   if not (Paths.is_empty stale_files) then exit 1
 
 open Cmdliner

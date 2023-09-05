@@ -112,6 +112,14 @@ let packages t =
   |> List.to_seq
   |> Libraries.of_seq
 
+let version t =
+  List.find_map (function
+      | Sexp.List [Atom "lang"; Atom "dune"; Atom version] -> Some version
+      | _ -> None) t
+  |> function
+     | None -> Fmt.failwith "dune-project file without `(lang dune _)` stanza"
+     | Some version -> version
+
 let dune_format dune =
   Bos.OS.Cmd.(in_string dune |>  run_io Bos.Cmd.(v "dune" % "format-dune-file") |> out_string)
   |> Bos.OS.Cmd.success

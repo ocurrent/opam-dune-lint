@@ -14,6 +14,8 @@ val write_project_file : t -> unit
 
 val packages : t -> string Paths.t
 
+val version : t -> string
+
 module Deps : sig
   type t = Dir_set.t Libraries.t
   (** The set of OCamlfind libraries needed, each with the directories needing it. *)
