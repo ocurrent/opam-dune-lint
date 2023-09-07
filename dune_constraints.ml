@@ -62,20 +62,21 @@ let check_dune_constraints ~errors ~dune_version pkg_name opam =
   in
   if is_build then (pkg_name, DuneIsBuild) :: errors else errors
 
-let msg_of_errors =
+let print_msg_of_errors =
     List.iter (fun (package, err) ->
       let pkg = OpamPackage.Name.to_string package in
       match err with
       | DuneConstraintMissing ->
-          Fmt.epr "Warning in %s: The package has a dune-project file but no explicit dependency on dune was found." pkg
+          Fmt.epr "Warning in %s: The package has a dune-project file but no explicit dependency on dune was found.@." pkg
       | DuneIsBuild ->
           Fmt.epr "Warning in %s: The package tagged dune as a build dependency. \
                    Due to a bug in dune (https://github.com/ocaml/dune/issues/2147) this should never be the case. \
-                   Please remove the {build} tag from its filter."
+                   Please remove the {build} tag from its filter.@."
             pkg
       | BadDuneConstraint (dep, ver) ->
           Fmt.failwith
             "Error in %s: Your dune-project file indicates that this package requires at least dune %s \
-                   but your opam file only requires dune >= %s. Please check which requirement is the right one, and fix the other."
+             but your opam file only requires dune >= %s. Please check which requirement is the right one, and fix the other."
             pkg ver dep
+
     )

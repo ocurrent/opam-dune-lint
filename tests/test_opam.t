@@ -17,6 +17,7 @@ Create a simple dune project:
   > depends: [
   >   "ocamlfind" {>= "1.0"}
   >   "libfoo"
+  >   "dune" {>= "2.7"}
   > ]
   > EOF
 
@@ -43,7 +44,6 @@ Check that the missing libraries get added:
 
   $ opam-dune-lint -f
   test.opam: changes needed:
-    "dune" {>= "1.0"}
     "fmt" {>= "1.0"}                         [from /]
     "bos" {with-test & >= "1.0"}             [from /]
     "opam-state" {with-test & >= "1.0"}      [from /]
