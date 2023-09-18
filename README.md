@@ -30,7 +30,7 @@ It works as follows:
 
 1. Lists the `*.opam` files in your project's root (ensuring they're up-to-date, if generated).
 2. Runs `dune describe external-lib-deps` to get all externals and internals ocamlfind libraries for all dune libraries, executables and tests. The information about the package is also known except for the private executables.
-3. Runs `dune describe package-entries` to get all packages entries, this is for considering the external ocamlfind libraries of a private executable, because in dune it possible to install an private executable.
+3. Runs `dune describe package-entries` to get all packages entries, this is for considering the external ocamlfind libraries of a private executable, because in Dune it is possible to install a private executable.
 4. Resolve for each opam library its internal and external ocamlfind library dependencies using the information of 1. and 2.
 5. Filters out vendored dependencies (by ignoring dependencies from subdirectories with their own `dune-project` file).
 6. For each ocamlfind library, it finds the corresponding opam library by

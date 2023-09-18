@@ -18,17 +18,23 @@ let describe_bin_of_entries =
       |> Describe_entries.entries_of_sexp
       |> Describe_entries.items_bin_of_entries)
 
-let has_dune_subproject = function
-  | "." | "" -> false
-  | dir -> Sys.file_exists (Filename.concat dir "dune-project")
+let has_dune_subproject path =
+  if Fpath.is_current_dir path then false
+  else
+    Fpath.(path / "dune-project")
+    |> Bos.OS.Path.exists
+    |> Stdlib.Result.get_ok
+
+
+let parent_path path = if Fpath.is_current_dir path then None else Some (Fpath.parent path)
 
 let rec should_use_dir ~dir_types path =
   match Hashtbl.find_opt dir_types path with
   | Some x -> x
   | None ->
     let r =
-      match Astring.String.cut ~sep:"/" ~rev:true path with
-      | Some (parent, _) ->
+      match parent_path path with
+      | Some parent ->
         if should_use_dir ~dir_types parent then (
           not (has_dune_subproject path)
         ) else false
@@ -44,8 +50,8 @@ let copy_rules () =
     (fun d_item ->
        d_item
        |> Describe_external_lib.get_item
-       |> (fun (item:Describe_external_lib.item) -> String.cat item.source_dir "/dune")
-       |> (Dune_rules.Copy_rules.get_copy_rules))
+       |> (fun (item:Describe_external_lib.item) -> Fpath.(item.source_dir / "dune"))
+       |> Dune_rules.Copy_rules.get_copy_rules)
   |> Dune_rules.Copy_rules.copy_rules_map
 
 let bin_of_entries () = Lazy.force describe_bin_of_entries
@@ -83,14 +89,10 @@ let resolve_internal_deps d_items items_pkg =
   let d_items_lib =
     d_items
     |> List.filter_map (fun d_item ->
-        match is_lib_item d_item with
-        | true ->
-          d_item
-          |> get_item
-          |> (fun (item:Describe_external_lib.item) ->
-              (String.cat item.name ".lib", Lib item))
-          |> Option.some
-        | false -> None)
+        if is_lib_item d_item then
+          let item = get_item d_item in
+          Some (item.Describe_external_lib.name ^ ".lib", Lib item)
+        else None)
     |> List.to_seq |> Hashtbl.of_seq
   in
   let rec add_internal acc = function
@@ -118,8 +120,8 @@ let get_dune_items dir_types ~pkg ~target =
       let item = Describe_external_lib.get_item d_item in
       if Describe_external_lib.is_exe_item d_item && Option.is_none item.package
       then
-        match find_package_of_exe item  with
-        | None ->  d_item
+        match find_package_of_exe item with
+        | None -> d_item
         | Some pkg -> Describe_external_lib.Exe { item with package = Some pkg }
       else d_item)
   |> (fun d_items ->
@@ -140,9 +142,8 @@ let get_dune_items dir_types ~pkg ~target =
       in d_items, unresolved_entries)
   |> (fun (d_items, unresolved_entries) ->
       d_items
-      |> List.map (fun d_item ->
-          match d_item with
-          | Describe_external_lib.Exe item ->
+      |> List.map (function
+          | Describe_external_lib.Exe item as d_item ->
             item.extensions
             |> List.find_map (fun extension ->
                 Item_map.find_opt (String.cat item.name extension) unresolved_entries)
@@ -171,11 +172,10 @@ let get_dune_items dir_types ~pkg ~target =
 
 let lib_deps ~pkg ~target =
   get_dune_items (Hashtbl.create 10) ~pkg ~target
-  |> List.map Describe_external_lib.get_item
-  |> List.fold_left (fun libs (item:Describe_external_lib.item) ->
-      List.map (fun dep ->
-          (fst dep, item.source_dir)) item.external_deps
-      |> List.fold_left (fun acc (lib,path) ->
+  |> List.fold_left (fun libs item ->
+      let item = Describe_external_lib.get_item item in
+      List.map (fun dep -> fst dep, item.source_dir) item.external_deps
+      |> List.fold_left (fun acc (lib, path) ->
           if Astring.String.take ~sat:((<>) '.') lib <> pkg then
             let dirs = Libraries.find_opt lib acc |> Option.value ~default:Dir_set.empty in
             Libraries.add lib (Dir_set.add path dirs) acc

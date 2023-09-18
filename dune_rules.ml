@@ -3,7 +3,7 @@ open Types
 module Copy_rules = struct
 
   let sexp_of_file file =
-    try Sexp.load_sexps file with
+    try Sexp.load_sexps @@ Fpath.to_string file with
     | Sexp.Parse_error _ as e ->
       (Fmt.pr "Error parsing 'dune file' output:\n"; raise e)
 
@@ -55,22 +55,24 @@ module Copy_rules = struct
       | s -> Fmt.failwith "%s is not a rule" (Sexp.to_string s)
     in
     sexps
-    |> List.filter is_action_copy
-    |> List.map (fun rule ->
-        rule
-        |> copy_rule_of_sexp
-        |> fun copy ->
-           if String.equal copy.to_name "%{target}" && String.equal copy.from_name "%{deps}" then
-             (*when we got `(action (copy %{deps} %{target}))` *)
-             {{copy with to_name = copy.target} with from_name = copy.dep}
-           else copy)
+    |> List.filter_map (fun rule ->
+        if not (is_action_copy rule) then
+          None
+        else
+          rule
+          |> copy_rule_of_sexp
+          |> fun copy ->
+          if String.equal copy.to_name "%{target}" && String.equal copy.from_name "%{deps}" then
+            (*when we got `(action (copy %{deps} %{target}))` *)
+            Some {{copy with to_name = copy.target} with from_name = copy.dep}
+          else Some copy)
 
   let copy_rules_map =
     List.fold_left (fun map copy -> Item_map.add copy.from_name copy map) Item_map.empty
 
   let get_copy_rules file =
     match Hashtbl.find_opt rules file with
-    | None when  Sys.file_exists file ->
+    | None when OS.Path.exists file |> Stdlib.Result.get_ok ->
       let copy_rules = copy_rules_of_sexp (sexp_of_file file) in
       Hashtbl.add rules file copy_rules; copy_rules
     | None -> Hashtbl.add rules file []; []

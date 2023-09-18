@@ -156,11 +156,10 @@ let main force dir =
   let old_opam_files = get_opam_files () in
   let packages = Dune_project.packages project in
   Paths.iter (fun path _ ->
-      if Paths.mem path packages then ()
-      else
-        (* prevent `dune describe opam-files` crashing when there is a opam file `*.opam`
-         * and its package description is missing in dune-project file.*)
-        Sys.remove path) old_opam_files;
+      (* prevent `dune describe opam-files` crashing when there is a opam file `*.opam`
+         * and its package description is missing in dune-project file. *)
+      if not (Paths.mem path packages) then Sys.remove path)
+    old_opam_files;
   let opam_files_content = updated_opam_files_content () in
   let opam_files =
     opam_files_content
@@ -210,10 +209,9 @@ let main force dir =
   get_opam_files ()
   |> Paths.to_seq
   |> List.of_seq
-  |> List.map (fun (path, opam) ->
+  |> List.concat_map (fun (path, opam) ->
       let pkg_name = (OpamPackage.Name.of_string (Filename.chop_suffix path ".opam")) in
       Dune_constraints.check_dune_constraints ~errors:[] ~dune_version pkg_name opam)
-  |> List.flatten
   |> (fun errors ->
       try Dune_constraints.print_msg_of_errors errors with
       | Failure msg -> Fmt.epr "%s@." msg; exit 1
