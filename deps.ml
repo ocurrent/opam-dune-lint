@@ -115,22 +115,23 @@ let resolve_internal_deps d_items items_pkg =
   add_internal (Hashtbl.create 10) items_pkg
 
 let get_dune_items dir_types ~pkg ~target =
-  Lazy.force describe_external_lib_deps
-  |> List.map (fun d_item ->
-      let item = Describe_external_lib.get_item d_item in
-      if Describe_external_lib.is_exe_item d_item && Option.is_none item.package
-      then
-        match find_package_of_exe item with
-        | None -> d_item
-        | Some pkg -> Describe_external_lib.Exe { item with package = Some pkg }
-      else d_item)
-  |> (fun d_items ->
+  let d_items =
+    Lazy.force describe_external_lib_deps
+    |> List.map (fun d_item ->
+        let item = Describe_external_lib.get_item d_item in
+        if Describe_external_lib.is_exe_item d_item && Option.is_none item.package
+        then
+          match find_package_of_exe item with
+          | None -> d_item
+          | Some pkg -> Describe_external_lib.Exe { item with package = Some pkg }
+        else d_item)
+  in
+  let unresolved_entries =
       let exe_items =
-        d_items |> List.filter_map (function
+        List.filter_map (function
             | Describe_external_lib.Exe item -> Some item
-            | _ -> None)
+            | _ -> None) d_items
       in
-      let unresolved_entries =
         bin_of_entries ()
         |> Item_map.partition (fun _ (entry:Describe_entries.item) ->
             exe_items
@@ -139,36 +140,34 @@ let get_dune_items dir_types ~pkg ~target =
                  is_bin_name_of_describe_lib  entry.bin_name item
                  && Option.equal String.equal (Some entry.package) item.package))
         |> snd
-      in d_items, unresolved_entries)
-  |> (fun (d_items, unresolved_entries) ->
-      d_items
-      |> List.map (function
-          | Describe_external_lib.Exe item as d_item ->
-            item.extensions
-            |> List.find_map (fun extension ->
-                Item_map.find_opt (String.cat item.name extension) unresolved_entries)
-            |> (function
-                | None -> d_item
-                | Some entry -> Describe_external_lib.Exe { item with package = Some entry.package })
-          | d_item -> d_item))
-  |> List.filter (fun item ->
-      match (item,target) with
-      | Describe_external_lib.Test _, `Install -> false
-      | Describe_external_lib.Test _, `Runtest -> true
-      | _ , `Runtest -> false
-      | _, `Install -> true)
-  |> List.filter (fun d_item -> should_use_dir ~dir_types (Describe_external_lib.get_item d_item).source_dir)
-  |> (fun d_items ->
-      d_items
-      |> List.filter (fun d_item ->
-          let item = Describe_external_lib.get_item d_item in
-          (* if an item has no package, we assume it's used for testing *)
-          if target = `Install then
-            Option.equal String.equal (Some pkg) item.package
-          else
-            Option.equal String.equal (Some pkg) item.package || Option.is_none item.package)
-      |> resolve_internal_deps d_items)
-
+  in
+  let d_items =
+    d_items
+    |> List.map (function
+        | Describe_external_lib.Exe item as d_item ->
+          item.extensions
+          |> List.find_map (fun extension ->
+              Item_map.find_opt (String.cat item.name extension) unresolved_entries)
+          |> (function
+              | None -> d_item
+              | Some entry -> Describe_external_lib.Exe { item with package = Some entry.package })
+        | d_item -> d_item)
+    |> List.filter (fun item ->
+        match (item,target) with
+        | Describe_external_lib.Test _, `Install -> false
+        | Describe_external_lib.Test _, `Runtest -> true
+        | _ , `Runtest -> false
+        | _, `Install -> true)
+    |> List.filter (fun d_item -> should_use_dir ~dir_types (Describe_external_lib.get_item d_item).source_dir)
+  in
+  List.filter (fun d_item ->
+      let item = Describe_external_lib.get_item d_item in
+      (* if an item has no package, we assume it's used for testing *)
+      if target = `Install then
+        Option.equal String.equal (Some pkg) item.package
+      else
+        Option.equal String.equal (Some pkg) item.package || Option.is_none item.package) d_items
+  |> resolve_internal_deps d_items
 
 let lib_deps ~pkg ~target =
   get_dune_items (Hashtbl.create 10) ~pkg ~target
