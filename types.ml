@@ -1,8 +1,18 @@
-module Dir_set = Set.Make(String)
+module Dir_set = Set.Make(Fpath)
 
 module Paths = Map.Make(String)
 
 module Libraries = Map.Make(String)
+
+module Dir_map = Map.Make(String)
+
+module Item_map = Map.Make(String)
+
+module Sexp = Sexplib.Sexp
+
+module Stdune = Stdune
+
+include Bos
 
 module Change = struct
   type t =
@@ -10,6 +20,27 @@ module Change = struct
     | `Add_with_test of OpamPackage.Name.t
     | `Add_build_dep of OpamPackage.t
     | `Add_test_dep of OpamPackage.t ]
+end
+
+module List = struct
+  include List
+  let rec concat_map f = function
+    | [] -> []
+    | x::xs -> prepend_concat_map (f x) f xs
+  and prepend_concat_map ys f xs =
+    match ys with
+    | [] -> concat_map f xs
+    | y::ys -> y::prepend_concat_map ys f xs
+  let find_map f l =
+    let rec find f = function
+      | [] -> None
+      | x::tl -> let v = f x in if Option.is_some v then v else find f tl
+    in find f l
+end
+
+module String = struct
+  include String
+  let cat = (^)
 end
 
 module Change_with_hint = struct
@@ -29,7 +60,9 @@ module Change_with_hint = struct
     | `Add_test_dep _ -> true
 
   let pp f (c, dirs) =
-    let dirs = Dir_set.map (function "." -> "/" | x -> x) dirs in
+    let dirs =
+      Dir_set.map (fun path -> if Fpath.is_current_dir path then Fpath.v "/" else path) dirs
+    in
     let change, hint =
       match c with
       | `Remove_with_test name -> Fmt.str "%a" pp_name name, ["(remove {with-test})"]
@@ -39,7 +72,7 @@ module Change_with_hint = struct
     in
     let hint =
       if Dir_set.is_empty dirs then hint
-      else Fmt.str "[from @[<h>%a@]]" Fmt.(list ~sep:comma string) (Dir_set.elements dirs) :: hint
+      else Fmt.str "[from @[<h>%a@]]" Fmt.(list ~sep:comma Fpath.pp) (Dir_set.elements dirs) :: hint
     in
     if hint = [] then
       Fmt.string f change
@@ -48,3 +81,17 @@ module Change_with_hint = struct
 
   let remove_hint (t:t) = fst t
 end
+
+let or_die = function
+  | Ok x -> x
+  | Error (`Msg m) -> failwith m
+
+let sexp cmd =
+  Bos.OS.Cmd.run_out (cmd)
+  |> Bos.OS.Cmd.to_string
+  |> or_die
+  |> String.trim
+  |> (fun s ->
+      try Sexp.of_string s with
+      | Sexp.Parse_error _ as e ->
+        Fmt.epr "Error parsing '%s' output:\n" (Bos.Cmd.to_string cmd); raise e)

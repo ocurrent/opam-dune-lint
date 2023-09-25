@@ -12,17 +12,13 @@ val update : (_ * Change.t list) Paths.t -> t -> t
 
 val write_project_file : t -> unit
 
-type index
+val packages : t -> string Paths.t
 
-val describe : unit -> index
-(** Create an index of the project's libraries, using "dune describe". *)
-
-val lookup : string -> index -> [`Internal | `External] option
-(** [lookup lib index] returns information from "dune describe" about [lib]. *)
+val version : t -> string
 
 module Deps : sig
   type t = Dir_set.t Libraries.t
   (** The set of OCamlfind libraries needed, each with the directories needing it. *)
 
-  val get_external_lib_deps : pkg:string -> target:string -> t
+  val get_external_lib_deps : pkg:string -> target:[`Install | `Runtest] -> t
 end

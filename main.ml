@@ -1,8 +1,17 @@
 open Types
 
+type check = Added | Deleted | Changed
+
+let string_of_check = function
+  | Added -> "added"
+  | Deleted -> "deleted"
+  | Changed -> "changed"
+
 let or_die = function
   | Ok x -> x
   | Error (`Msg m) -> failwith m
+
+let dune_describe_opam_files = Bos.Cmd.(v "dune" % "describe" % "opam-files")
 
 let () =
   (* When run as a plugin, opam helpfully scrubs the environment.
@@ -22,12 +31,7 @@ let () =
       )
   | x -> Fmt.epr "WARNING: bad sexp from opam config env: %a@." Sexplib.Sexp.pp_hum x
 
-let dune_build_install =
-  Bos.Cmd.(v "dune" % "build" %% (on (Unix.(isatty stderr)) (v "--display=progress")) % "@install")
-
-let get_libraries ~pkg ~target =
-  Dune_project.Deps.get_external_lib_deps ~pkg ~target
-  |> Libraries.add "dune" Dir_set.empty              (* We always need dune *)
+let get_libraries ~pkg ~target = Dune_project.Deps.get_external_lib_deps ~pkg ~target
 
 let to_opam ~index lib =
   match Astring.String.take ~sat:((<>) '.') lib with
@@ -42,8 +46,7 @@ let to_opam ~index lib =
       Some (OpamPackage.create (OpamPackage.Name.of_string lib) (OpamPackage.Version.of_string "0"))
 
 (* Convert a map of (ocamlfind-library -> hints) to a map of (opam-package -> hints). *)
-let to_opam_set ~project ~index libs =
-  let libs = libs |> Libraries.filter (fun lib _ -> Dune_project.lookup lib project <> Some `Internal) in
+let to_opam_set ~index libs =
   Libraries.fold (fun lib dirs acc ->
       match to_opam ~index lib with
       | Some pkg -> OpamPackage.Map.update pkg (Dir_set.union dirs) Dir_set.empty acc
@@ -59,13 +62,18 @@ let get_opam_files () =
       Paths.add path opam acc
     ) Paths.empty
 
+let updated_opam_files_content () =
+  sexp dune_describe_opam_files
+  |> Dune_items.Describe_opam_files.opam_files_of_sexp
+  |> List.fold_left (fun acc (path,opam) -> Paths.add path opam acc) Paths.empty
+
 let check_identical _path a b =
   match a, b with
   | Some a, Some b ->
     if OpamFile.OPAM.effectively_equal a b then None
-    else Some "changed"
-  | Some _, None -> Some "deleted"
-  | None, Some _ -> Some "added"
+    else Some Changed
+  | Some _, None -> Some Deleted
+  | None, Some _ -> Some Added
   | None, None -> assert false
 
 let pp_problems f = function
@@ -78,9 +86,9 @@ let display path (_opam, problems) =
     Fmt.(styled `Bold string) pkg
     pp_problems problems
 
-let generate_report ~project ~index ~opam pkg =
-  let build = get_libraries ~pkg ~target:"@install" |> to_opam_set ~project ~index in
-  let test = get_libraries ~pkg ~target:"@runtest" |> to_opam_set ~project ~index in
+let generate_report ~index ~opam pkg =
+  let build = get_libraries ~pkg ~target:`Install |> to_opam_set ~index in
+  let test = get_libraries ~pkg ~target:`Runtest |> to_opam_set ~index in
   let opam_deps =
     OpamFormula.And (OpamFile.OPAM.depends opam, OpamFile.OPAM.depopts opam)
     |> Formula.classify in
@@ -135,18 +143,47 @@ let confirm_with_user () =
     false
   )
 
+let write_file path content =
+  let chan = open_out path in
+  output_string chan content;
+  flush chan;
+  close_out chan
+
 let main force dir =
   Sys.chdir dir;
   let index = Index.create () in
+  let project = Dune_project.parse () in
   let old_opam_files = get_opam_files () in
-  Bos.OS.Cmd.run dune_build_install |> or_die;
-  let opam_files = get_opam_files () in
+  let packages = Dune_project.packages project in
+  Paths.iter (fun path _ ->
+      (* prevent `dune describe opam-files` crashing when there is a opam file `*.opam`
+         * and its package description is missing in dune-project file. *)
+      if not (Paths.mem path packages) then Sys.remove path)
+    old_opam_files;
+  let opam_files_content = updated_opam_files_content () in
+  let opam_files =
+    opam_files_content
+    |> Paths.mapi (fun path content ->
+        let opamfile = Dune_items.Describe_opam_files.opamfile_of_content content in
+        match Paths.find_opt path old_opam_files with
+        | None -> opamfile
+        | Some opam ->
+          let depends = OpamFile.OPAM.depends opam in
+          OpamFile.OPAM.with_depends depends opamfile)
+  in
   if Paths.is_empty opam_files then failwith "No *.opam files found!";
   let stale_files = Paths.merge check_identical old_opam_files opam_files in
-  stale_files |> Paths.iter (fun path msg -> Fmt.pr "%s: %s after 'dune build @install'!@." path msg);
-  let project = Dune_project.describe () in
+  stale_files |> Paths.iter (fun path msg ->
+      (match msg with
+       | Added   -> write_file path (Paths.find path opam_files_content)
+       | Deleted -> () (* Already removed*)
+       | Changed ->
+         OpamFile.OPAM.write_with_preserved_format (OpamFile.make (OpamFilename.raw (path))) (Paths.find path opam_files)
+      );
+      Fmt.pr "%s: %s after its upgrade from 'dune describe opam-files'!@." path (string_of_check msg)
+    );
   opam_files |> Paths.mapi (fun path opam ->
-      (opam, generate_report ~project ~index ~opam (Filename.chop_suffix path ".opam"))
+      (opam, generate_report ~index ~opam (Filename.chop_suffix path ".opam"))
     )
   |> fun report ->
   Paths.iter display report;
@@ -156,12 +193,11 @@ let main force dir =
   let have_changes = Paths.exists (fun _ -> function (_, []) -> false | _ -> true) report in
   if have_changes then (
     if force || confirm_with_user () then (
-      let project = Dune_project.parse () in
       if Dune_project.generate_opam_enabled project then (
         project
         |> Dune_project.update report
         |> Dune_project.write_project_file;
-        Bos.OS.Cmd.run dune_build_install |> or_die;
+        updated_opam_files_content () |> Paths.iter (fun path content -> write_file path content);
       ) else (
         Paths.iter update_opam_file report
       )
@@ -169,6 +205,17 @@ let main force dir =
       exit 1
     )
   );
+  let dune_version = Dune_project.version project in
+  get_opam_files ()
+  |> Paths.to_seq
+  |> List.of_seq
+  |> List.concat_map (fun (path, opam) ->
+      let pkg_name = (OpamPackage.Name.of_string (Filename.chop_suffix path ".opam")) in
+      Dune_constraints.check_dune_constraints ~errors:[] ~dune_version pkg_name opam)
+  |> (fun errors ->
+      try Dune_constraints.print_msg_of_errors errors with
+      | Failure msg -> Fmt.epr "%s@." msg; exit 1
+      | _ -> Fmt.epr "Error from dune_constraints errors printing"; exit 1);
   if not (Paths.is_empty stale_files) then exit 1
 
 open Cmdliner

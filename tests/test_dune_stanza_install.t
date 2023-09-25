@@ -1,4 +1,4 @@
-Create a simple dune project:
+Create a simple dune project and use "install" stanza:
 
   $ cat > dune-project << EOF
   > (lang dune 2.7)
@@ -14,13 +14,16 @@ Create a simple dune project:
   $ cat > dune << EOF
   > (executable
   >  (name main)
-  >  (public_name main)
   >  (modules main)
   >  (libraries findlib fmt))
   > (test
   >  (name test)
   >  (modules test)
   >  (libraries bos opam-state))
+  > (install
+  >  (section bin)
+  >  (package test)
+  >  (files main.exe))
   > EOF
 
   $ touch main.ml test.ml
