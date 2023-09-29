@@ -158,7 +158,7 @@ let main force dir =
 
   (* some dune project file has no package description
    * and avoid removing all the opam files *)
-  if not (Paths.is_empty (Dune_project.packages project)) then (
+  if not (Paths.is_empty packages) then (
     old_opam_files |> Paths.iter (fun path _ -> if not (Paths.mem path packages) then Sys.remove path)
     (* prevent `dune describe opam-files` crashing when there is a opam file `*.opam`
      * that its package description is missing in dune-project file. *)
