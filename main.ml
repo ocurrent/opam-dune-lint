@@ -155,11 +155,20 @@ let main force dir =
   let project = Dune_project.parse () in
   let old_opam_files = get_opam_files () in
   let packages = Dune_project.packages project in
-  Paths.iter (fun path _ ->
-      (* prevent `dune describe opam-files` crashing when there is a opam file `*.opam`
-         * and its package description is missing in dune-project file. *)
-      if not (Paths.mem path packages) then Sys.remove path)
-    old_opam_files;
+
+  (* some dune project file has no package description
+   * and avoid removing all the opam files *)
+  if not (Paths.is_empty packages) then (
+    old_opam_files |> Paths.iter (fun path _ -> if not (Paths.mem path packages) then Sys.remove path)
+    (* prevent `dune describe opam-files` to fail when there is a opam file `*.opam`
+     * that its package description is missing in dune-project file.
+     * The error from dune will be:
+     *   Error: This opam file doesn't have a corresponding (package ...) stanza in
+     *   the dune-project file. Since you have at least one other (package ...) stanza
+     *   in your dune-project file, you must a (package ...) stanza for each opam
+     *   package in your project. *)
+  );
+
   let opam_files_content = updated_opam_files_content () in
   let opam_files =
     opam_files_content
