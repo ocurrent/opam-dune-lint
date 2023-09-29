@@ -160,8 +160,13 @@ let main force dir =
    * and avoid removing all the opam files *)
   if not (Paths.is_empty packages) then (
     old_opam_files |> Paths.iter (fun path _ -> if not (Paths.mem path packages) then Sys.remove path)
-    (* prevent `dune describe opam-files` crashing when there is a opam file `*.opam`
-     * that its package description is missing in dune-project file. *)
+    (* prevent `dune describe opam-files` to fail when there is a opam file `*.opam`
+     * that its package description is missing in dune-project file.
+     * The error from dune will be:
+     *   Error: This opam file doesn't have a corresponding (package ...) stanza in
+     *   the dune-project file. Since you have at least one other (package ...) stanza
+     *   in your dune-project file, you must a (package ...) stanza for each opam
+     *   package in your project. *)
   );
 
   let opam_files_content = updated_opam_files_content () in
