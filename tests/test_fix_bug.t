@@ -48,7 +48,7 @@ Check that the missing libraries get added:
   Note: version numbers are just suggestions based on the currently installed version.
   Wrote "./test.opam"
 
-  $ cat test.opam | sed 's/= [^&)}]*/= */g'
+  $ sed 's/= [^&)}]*/= */g' test.opam
   # Preserve comments
   opam-version: "2.0"
   synopsis: "Test package"
