@@ -1,5 +1,11 @@
 ### Unreleased
 
+- Fix the issue #53. Skip resolving a public library when it is added as optional dependency(dune's libraries stanza) (@moyodiallo #54).
+
+### v0.3
+
+- Fix the issue #51, when there's no package declared in `dune-project` file (@moyodiallo #52).
+
 - Add support for dune 3.0 , the command `dune external-lib-deps` was removed from
   dune. Now, the `opam-dune-lint` command works without `dune build`. (@moyodiallo #46).
 
