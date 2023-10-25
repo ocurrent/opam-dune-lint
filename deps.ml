@@ -103,11 +103,11 @@ let resolve_internal_deps d_items items_pkg =
       else begin
         Hashtbl.add acc (get_name item) item;
         (get_item item).internal_deps
-        |> List.filter_map (fun (name, k) ->
+        |> List.filter_map (fun (name, _) ->
             match Hashtbl.find_opt d_items_lib (String.cat name ".lib") with
             | None -> None
             | Some d_item_lib ->
-              if Kind.is_required k && Option.is_some (get_item d_item_lib).package then None
+              if Option.is_some (get_item d_item_lib).package then None
               else Some d_item_lib)
         |> fun internals -> add_internal acc (tl @ internals)
       end
