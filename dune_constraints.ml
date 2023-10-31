@@ -74,9 +74,10 @@ let print_msg_of_errors =
                    Please remove the {build} tag from its filter.@."
             pkg
       | BadDuneConstraint (dep, ver) ->
-          Fmt.failwith
+          Fmt.epr
             "Error in %s: Your dune-project file indicates that this package requires at least dune %s \
-             but your opam file only requires dune >= %s. Please check which requirement is the right one, and fix the other."
+             but your opam file only requires dune >= %s. Please check which requirement is the \
+             right one, and fix the other.@."
             pkg ver dep
 
     )
