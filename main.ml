@@ -222,9 +222,10 @@ let main force dir =
       let pkg_name = (OpamPackage.Name.of_string (Filename.chop_suffix path ".opam")) in
       Dune_constraints.check_dune_constraints ~errors:[] ~dune_version pkg_name opam)
   |> (fun errors ->
-      try Dune_constraints.print_msg_of_errors errors with
-      | Failure msg -> Fmt.epr "%s@." msg; exit 1
-      | _ -> Fmt.epr "Error from dune_constraints errors printing"; exit 1);
+      Dune_constraints.print_msg_of_errors errors;
+      List.find_opt (function (_, Dune_constraints.BadDuneConstraint _) -> true | _ -> false) errors
+      |> function None -> () | Some _ -> exit 1
+  );
   if not (Paths.is_empty stale_files) then exit 1
 
 open Cmdliner
