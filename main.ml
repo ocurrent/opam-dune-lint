@@ -37,7 +37,7 @@ let to_opam ~index lib =
   match Astring.String.take ~sat:((<>) '.') lib with
   | "threads" | "unix" | "str" | "compiler-libs"
   | "bigarray" | "dynlink" | "ocamldoc" | "stdlib"
-  | "bytes" -> None          (* Distributed with OCaml *)
+  | "bytes" | "runtime_events" -> None          (* Distributed with OCaml *)
   | lib ->
     match Index.Owner.find_opt lib index with
     | Some pkg -> Some pkg
