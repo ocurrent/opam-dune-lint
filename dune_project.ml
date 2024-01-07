@@ -52,6 +52,7 @@ let parse () =
 let generate_opam_enabled =
   List.exists (function
       | Sexp.List [Sexp.Atom "generate_opam_files"; Atom v] -> bool_of_string v
+      | Sexp.List [Sexp.Atom "generate_opam_files"] -> true
       | _ -> false
     )
 
