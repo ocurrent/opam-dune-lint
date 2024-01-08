@@ -1,3 +1,6 @@
+### unreleased
+- Fix the issue #59, Sexplib parse fails because of Dune stanza description quote( `"\|` or `"\>`). (@moyodiallo #60)
+
 ### v0.4
 
 - Fix the issue #53. Skip resolving a public library when it is added as optional dependency(dune's libraries stanza) (@moyodiallo #54).

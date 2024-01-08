@@ -8,9 +8,46 @@ let atom s = Sexp.Atom s
 let dune_and x y =  Sexp.(List [atom "and"; x; y])
 let lower_bound v = Sexp.(List [atom ">="; atom (OpamPackage.Version.to_string v)])
 
+let with_open_in fn file =
+  let in_file = open_in file in
+  let r = fn in_file in
+  (close_in in_file; r)
+
+let with_open_out fn file =
+  let out_file = open_out file in
+  let r = fn out_file in
+  (flush out_file; close_out out_file; r)
+
+(* Dune description stanza admit some quote starting like "\>" or "|>" which fails
+   when using Sexplib to parse dune-project file.*)
+let remove_quoted_string dune_project_s =
+  let is_quote s =
+    if String.length s > 2 then
+      let quote = String.sub s 0 3 in
+      String.equal quote "\"\\>" || String.equal quote "\"\\|"
+    else false
+  in
+  let first_quote = ref false in
+  dune_project_s
+  |> Astring.String.cuts ~sep:"\n"
+  |> List.filter_map (fun s ->
+    let is_quote = is_quote @@ String.trim s in
+    if is_quote && not (!first_quote) then
+      (first_quote := true; Some "\"\"")
+    else if is_quote then None
+    else Some s)
+  |> String.concat "\n"
+
 let parse () =
   Stdune.Path.Build.(set_build_dir (Stdune.Path.Outside_build_dir.of_string (Sys.getcwd ())));
-  Sexp.input_sexps (open_in "dune-project")
+  with_open_in (fun chan ->
+    In_channel.input_all chan
+    |> remove_quoted_string
+    |> fun s -> String.concat " " ["(__dune_project__";s;")"]
+    |> Sexp.of_string |> function
+    | Sexp.List ((Atom "__dune_project__")::sexps) -> sexps
+    | _ -> Fmt.failwith "Fails to parse 'dune-project' file"
+  ) "dune-project"
 
 let generate_opam_enabled =
   List.exists (function
@@ -126,10 +163,8 @@ let dune_format dune =
   |> or_die
 
 let write_project_file t =
-  let path = "dune-project" in
-  let ch = open_out path in
-  let f = Format.formatter_of_out_channel ch in
-  Fmt.str "%a" (Fmt.list ~sep:Fmt.cut Sexp.pp) t |> dune_format |> Fmt.pf f "%s";
-  flush ch;
-  close_out ch;
-  Fmt.pr "Wrote %S@." path
+  with_open_out (fun ch ->
+    let f = Format.formatter_of_out_channel ch in
+    Fmt.str "%a" (Fmt.list ~sep:Fmt.cut Sexp.pp) t |> dune_format |> Fmt.pf f "%s";
+  ) "dune-project";
+  Fmt.pr "Wrote %S@." "dune-project"
