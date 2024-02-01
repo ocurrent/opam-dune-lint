@@ -8,11 +8,6 @@ let atom s = Sexp.Atom s
 let dune_and x y =  Sexp.(List [atom "and"; x; y])
 let lower_bound v = Sexp.(List [atom ">="; atom (OpamPackage.Version.to_string v)])
 
-let with_open_in fn file =
-  let in_file = open_in file in
-  let r = fn in_file in
-  (close_in in_file; r)
-
 let with_open_out fn file =
   let out_file = open_out file in
   let r = fn out_file in
@@ -29,7 +24,7 @@ let remove_quoted_string dune_project_s =
   in
   let first_quote = ref false in
   dune_project_s
-  |> Astring.String.cuts ~sep:"\n"
+  (* |> Astring.String.cuts ~sep:"\n" *)
   |> List.filter_map (fun s ->
     let is_quote = is_quote @@ String.trim s in
     if is_quote && not (!first_quote) then
@@ -40,14 +35,15 @@ let remove_quoted_string dune_project_s =
 
 let parse () =
   Stdune.Path.Build.(set_build_dir (Stdune.Path.Outside_build_dir.of_string (Sys.getcwd ())));
-  with_open_in (fun chan ->
-    In_channel.input_all chan
-    |> remove_quoted_string
-    |> fun s -> String.concat " " ["(__dune_project__";s;")"]
-    |> Sexp.of_string |> function
-    | Sexp.List ((Atom "__dune_project__")::sexps) -> sexps
-    | _ -> Fmt.failwith "Fails to parse 'dune-project' file"
-  ) "dune-project"
+  Fpath.of_string "dune-project"
+  |> Result.get_ok
+  |> Bos.OS.File.read_lines
+  |> Result.get_ok
+  |> remove_quoted_string
+  |> fun s -> String.concat " " ["(__dune_project__";s;")"]
+  |> Sexp.of_string |> function
+  | Sexp.List ((Atom "__dune_project__")::sexps) -> sexps
+  | _ -> Fmt.failwith "Fails to parse 'dune-project' file"
 
 let generate_opam_enabled =
   List.exists (function
