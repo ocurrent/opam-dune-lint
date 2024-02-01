@@ -36,9 +36,9 @@ let remove_quoted_string dune_project_s =
 let parse () =
   Stdune.Path.Build.(set_build_dir (Stdune.Path.Outside_build_dir.of_string (Sys.getcwd ())));
   Fpath.of_string "dune-project"
-  |> Result.get_ok
+  |> Stdlib.Result.get_ok
   |> Bos.OS.File.read_lines
-  |> Result.get_ok
+  |> Stdlib.Result.get_ok
   |> remove_quoted_string
   |> fun s -> String.concat " " ["(__dune_project__";s;")"]
   |> Sexp.of_string |> function
