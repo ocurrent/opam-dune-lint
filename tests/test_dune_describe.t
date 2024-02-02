@@ -16,26 +16,28 @@ Create a simple dune project:
   >  (name main)
   >  (public_name main)
   >  (modules main)
-  >  (libraries findlib fmt))
+  >  (libraries findlib fmt)
+  >  (modes byte))
   > (library
   >  (name lib)
   >  (package test)
   >  (modules lib)
-  >  (libraries bos))
+  >  (libraries bos)
+  >  (modes byte))
   > (test
   >  (package test)
   >  (name test)
   >  (modules test)
-  >  (libraries bos opam-state))
+  >  (libraries bos opam-state)
+  >  (modes byte))
   > EOF
 
   $ touch main.ml test.ml lib.ml
-  $ dune build
   $ dune describe external-lib-deps
   (default
    ((executables
      ((names (main))
-      (extensions (.exe))
+      (extensions (.bc))
       (package (test))
       (source_dir .)
       (external_deps
@@ -51,8 +53,7 @@ Create a simple dune project:
       (internal_deps ())))
     (tests
      ((names (test))
-      (extensions
-       (.bc .exe))
+      (extensions (.bc))
       (package (test))
       (source_dir .)
       (external_deps
@@ -73,13 +74,13 @@ Create a simple dune project:
        (User
         ((pos_fname dune)
          (start
-          ((pos_lnum 6)
-           (pos_bol 87)
-           (pos_cnum 87)))
+          ((pos_lnum 7)
+           (pos_bol 101)
+           (pos_cnum 101)))
          (stop
-          ((pos_lnum 10)
-           (pos_bol 139)
-           (pos_cnum 156))))))
+          ((pos_lnum 12)
+           (pos_bol 170)
+           (pos_cnum 184))))))
       (entry
        ((src
          (In_build_dir default/.lib.objs/byte/lib.cmi))
@@ -91,13 +92,13 @@ Create a simple dune project:
        (User
         ((pos_fname dune)
          (start
-          ((pos_lnum 6)
-           (pos_bol 87)
-           (pos_cnum 87)))
+          ((pos_lnum 7)
+           (pos_bol 101)
+           (pos_cnum 101)))
          (stop
-          ((pos_lnum 10)
-           (pos_bol 139)
-           (pos_cnum 156))))))
+          ((pos_lnum 12)
+           (pos_bol 170)
+           (pos_cnum 184))))))
       (entry
        ((src
          (In_build_dir default/.lib.objs/byte/lib.cmt))
@@ -109,31 +110,13 @@ Create a simple dune project:
        (User
         ((pos_fname dune)
          (start
-          ((pos_lnum 6)
-           (pos_bol 87)
-           (pos_cnum 87)))
+          ((pos_lnum 7)
+           (pos_bol 101)
+           (pos_cnum 101)))
          (stop
-          ((pos_lnum 10)
-           (pos_bol 139)
-           (pos_cnum 156))))))
-      (entry
-       ((src
-         (In_build_dir default/lib.a))
-        (kind file)
-        (dst __private__/lib/lib.a)
-        (section LIB)
-        (optional false))))
-     ((source
-       (User
-        ((pos_fname dune)
-         (start
-          ((pos_lnum 6)
-           (pos_bol 87)
-           (pos_cnum 87)))
-         (stop
-          ((pos_lnum 10)
-           (pos_bol 139)
-           (pos_cnum 156))))))
+          ((pos_lnum 12)
+           (pos_bol 170)
+           (pos_cnum 184))))))
       (entry
        ((src
          (In_build_dir default/lib.cma))
@@ -145,49 +128,13 @@ Create a simple dune project:
        (User
         ((pos_fname dune)
          (start
-          ((pos_lnum 6)
-           (pos_bol 87)
-           (pos_cnum 87)))
+          ((pos_lnum 7)
+           (pos_bol 101)
+           (pos_cnum 101)))
          (stop
-          ((pos_lnum 10)
-           (pos_bol 139)
-           (pos_cnum 156))))))
-      (entry
-       ((src
-         (In_build_dir default/.lib.objs/native/lib.cmx))
-        (kind file)
-        (dst __private__/lib/lib.cmx)
-        (section LIB)
-        (optional false))))
-     ((source
-       (User
-        ((pos_fname dune)
-         (start
-          ((pos_lnum 6)
-           (pos_bol 87)
-           (pos_cnum 87)))
-         (stop
-          ((pos_lnum 10)
-           (pos_bol 139)
-           (pos_cnum 156))))))
-      (entry
-       ((src
-         (In_build_dir default/lib.cmxa))
-        (kind file)
-        (dst __private__/lib/lib.cmxa)
-        (section LIB)
-        (optional false))))
-     ((source
-       (User
-        ((pos_fname dune)
-         (start
-          ((pos_lnum 6)
-           (pos_bol 87)
-           (pos_cnum 87)))
-         (stop
-          ((pos_lnum 10)
-           (pos_bol 139)
-           (pos_cnum 156))))))
+          ((pos_lnum 12)
+           (pos_bol 170)
+           (pos_cnum 184))))))
       (entry
        ((src
          (In_build_dir default/lib.ml))
@@ -215,24 +162,6 @@ Create a simple dune project:
        (User
         ((pos_fname dune)
          (start
-          ((pos_lnum 6)
-           (pos_bol 87)
-           (pos_cnum 87)))
-         (stop
-          ((pos_lnum 10)
-           (pos_bol 139)
-           (pos_cnum 156))))))
-      (entry
-       ((src
-         (In_build_dir default/lib.cmxs))
-        (kind file)
-        (dst __private__/lib/lib.cmxs)
-        (section LIBEXEC)
-        (optional false))))
-     ((source
-       (User
-        ((pos_fname dune)
-         (start
           ((pos_lnum 2)
            (pos_bol 12)
            (pos_cnum 19)))
@@ -242,7 +171,7 @@ Create a simple dune project:
            (pos_cnum 23))))))
       (entry
        ((src
-         (In_build_dir default/main.exe))
+         (In_build_dir default/main.bc))
         (kind file)
         (dst main)
         (section BIN)
