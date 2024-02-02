@@ -1,4 +1,6 @@
 ### unreleased
+- Fix the lower bound to have 4.08.0 as the minimal version of OCaml (moyodiallo #64).
+
 - Fix the issue #61, Dune stanza `(generate_opam_files true)` is same as `(generate_opam_files)` stanza (@devvydeebug #62).
 
 - Fix the issue #59, Sexplib parse fails because of Dune stanza description quote( `"\|` or `"\>`). (@moyodiallo #60)
