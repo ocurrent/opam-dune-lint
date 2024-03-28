@@ -40,7 +40,7 @@ let parse () =
   |> Bos.OS.File.read_lines
   |> Stdlib.Result.get_ok
   |> remove_quoted_string
-  |> fun s -> String.concat " " ["(__dune_project__";s;")"]
+  |> fun s -> String.concat " " ["(__dune_project__\n";s;"\n)"]
   |> Sexp.of_string |> function
   | Sexp.List ((Atom "__dune_project__")::sexps) -> sexps
   | _ -> Fmt.failwith "Fails to parse 'dune-project' file"
