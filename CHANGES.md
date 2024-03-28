@@ -1,3 +1,7 @@
+### Unreleased
+
+- Fix the #66, when the content of dune-project file ends up with a comment, the Sexplib parse fails because the last `)` falls into the comment (@moyodiallo #67).
+
 ### v0.5
 
 - Fix the lower bound to have 4.08.0 as the minimal version of OCaml (@moyodiallo #64).
