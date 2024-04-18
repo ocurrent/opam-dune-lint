@@ -1,8 +1,8 @@
-### Unreleased
-
-- Fix the issue #66, when the content of dune-project file ends up with a comment, the Sexplib parse fails because the last `)` falls into the comment (@moyodiallo #67).
+### v0.6
 
 - Fix the issue #68, with Sexp format dune parse quoted string by escaping "%{" to become "\%{" that OpamFile module can't parse. So we switch to Csexp format which doesn't change quoted string (@moyodiallo #69).
+
+- Fix the issue #66, when the content of dune-project file ends up with a comment, the Sexplib parse fails because the last `)` falls into the comment (@moyodiallo #67).
 
 ### v0.5
 
