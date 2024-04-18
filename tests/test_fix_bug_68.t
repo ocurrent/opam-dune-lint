@@ -45,8 +45,10 @@ Replace all version numbers with "1.0" to get predictable output.
 Check that the missing libraries get added:
 
   $ opam-dune-lint -f
-  opam-dune-lint: internal error, uncaught exception:
-                  At ./<none>:5:35-5:35::
-                  illegal escape sequence
-                  
-  [125]
+  test.opam: changes needed:
+    "fmt" {>= "1.0"}                         [from /]
+    "bos" {with-test & >= "1.0"}             [from /]
+    "opam-state" {with-test & >= "1.0"}      [from /]
+  Note: version numbers are just suggestions based on the currently installed version.
+  Wrote "./test.opam"
+  Warning in test: The package has a dune-project file but no explicit dependency on dune was found.

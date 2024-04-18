@@ -11,7 +11,7 @@ let or_die = function
   | Ok x -> x
   | Error (`Msg m) -> failwith m
 
-let dune_describe_opam_files = Bos.Cmd.(v "dune" % "describe" % "opam-files")
+let dune_describe_opam_files = Bos.Cmd.(v "dune" % "describe" % "opam-files" % "--format" % "csexp")
 
 let () =
   (* When run as a plugin, opam helpfully scrubs the environment.
@@ -63,8 +63,8 @@ let get_opam_files () =
     ) Paths.empty
 
 let updated_opam_files_content () =
-  sexp dune_describe_opam_files
-  |> Dune_items.Describe_opam_files.opam_files_of_sexp
+  csexp dune_describe_opam_files
+  |> List.map Dune_items.Describe_opam_files.opam_files_of_csexp |> List.flatten
   |> List.fold_left (fun acc (path,opam) -> Paths.add path opam acc) Paths.empty
 
 let check_identical _path a b =

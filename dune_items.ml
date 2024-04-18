@@ -182,15 +182,15 @@ module Describe_opam_files = struct
   (** Representing a list of name and content of an opam file *)
   type t = (path * content) list
 
-  (** Decode opam files from the command "dune describe opam-files" output. *)
-  let opam_files_of_sexp = function
-    | Sexp.List sexps ->
+  (** Decode opam files from the command "dune describe opam-files --format csexp" output. *)
+  let opam_files_of_csexp = function
+    | Csexp.List sexps ->
       sexps
       |> List.map (function
-          | Sexp.List [Atom path; Atom content] ->
+          | Csexp.List [Atom path; Atom content] ->
             (path, content)
-          | s -> Fmt.failwith "%s is not a good format decoding an item" (Sexp.to_string s))
-    | s -> Fmt.failwith "%s is not a good format decoding items" (Sexp.to_string s)
+          | s -> Fmt.failwith "\"%s\" is not a good format decoding an item" (Csexp.to_string s))
+    | s -> Fmt.failwith "\"%s\" is not a good format decoding items" (Csexp.to_string s)
 
   let opamfile_of_content content = OpamFile.OPAM.read_from_string content
 

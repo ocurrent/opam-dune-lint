@@ -95,3 +95,14 @@ let sexp cmd =
       try Sexp.of_string s with
       | Sexp.Parse_error _ as e ->
         Fmt.epr "Error parsing '%s' output:\n" (Bos.Cmd.to_string cmd); raise e)
+
+let csexp cmd =
+  Bos.OS.Cmd.run_out (cmd)
+  |> Bos.OS.Cmd.to_string
+  |> or_die
+  |> String.trim
+  |> (fun s ->
+    match Csexp.parse_string_many s with
+    | Ok csexp -> csexp
+    | Error msg ->
+      Fmt.epr "Error parsing '%s' output:\n%S" (Bos.Cmd.to_string cmd) (snd msg); exit 1)
