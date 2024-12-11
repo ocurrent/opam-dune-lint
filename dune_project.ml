@@ -155,7 +155,7 @@ let version t =
      | Some version -> version
 
 let dune_format dune =
-  Bos.OS.Cmd.(in_string dune |> run_io Bos.Cmd.(v "dune" % "format-dune-file") |> out_string)
+  Bos.OS.Cmd.(in_string dune |> run_io Bos.Cmd.(v "dune" % "format-dune-file") |> out_string ~trim:false)
   |> Bos.OS.Cmd.success
   |> or_die
 
