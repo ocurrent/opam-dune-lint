@@ -154,14 +154,15 @@ let version t =
      | None -> Fmt.failwith "dune-project file without `(lang dune _)` stanza"
      | Some version -> version
 
-let dune_format dune =
-  Bos.OS.Cmd.(in_string dune |> run_io Bos.Cmd.(v "dune" % "format-dune-file") |> out_string ~trim:false)
+let dune_format ~version dune =
+  Bos.OS.Cmd.(in_string dune |> run_io Bos.Cmd.(v "dune" % "format-dune-file" % "--dune-version" % version) |> out_string ~trim:false)
   |> Bos.OS.Cmd.success
   |> or_die
 
 let write_project_file t =
+  let ver = version t in
   with_open_out (fun ch ->
     let f = Format.formatter_of_out_channel ch in
-    Fmt.str "%a" (Fmt.list ~sep:Fmt.cut Sexp.pp) t |> dune_format |> Fmt.pf f "%s";
+    Fmt.str "%a" (Fmt.list ~sep:Fmt.cut Sexp.pp) t |> dune_format ~version:ver |> Fmt.pf f "%s";
   ) "dune-project";
   Fmt.pr "Wrote %S@." "dune-project"
