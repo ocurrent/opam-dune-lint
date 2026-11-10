@@ -18,7 +18,7 @@ stanza (dune describe external-lib-deps lists it anyway):
   > EOF
 
   $ touch test.ml
-  $ dune build
+  $ dune build test.opam
 
   $ export OPAM_DUNE_LINT_TESTS=y
 

@@ -1,3 +1,11 @@
+### v0.7
+
+- Treat the OxCaml stdlib libraries (`stdlib_stable`, `stdlib_upstream_compatible`, `stdlib_alpha` and `stdlib_beta`) as distributed with the compiler, so they need no opam dependency (@vouillon #77).
+
+- Add the lang version to `dune-project` before formatting (@Alizter #74).
+
+- Preserve terminating newlines in `dune-project` files (@amongonz #72).
+
 ### v0.6
 
 - Fix the issue #68, with Sexp format dune parse quoted string by escaping "%{" to become "\%{" that OpamFile module can't parse. So we switch to Csexp format which doesn't change quoted string (@moyodiallo #69).
