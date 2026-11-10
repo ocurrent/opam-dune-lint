@@ -60,7 +60,7 @@ Create a simple dune project:
        ((bos required)
         (opam-state required)))
       (internal_deps ())))))
-  $ dune describe package-entries
+  $ dune describe package-entries | sed 's/(kind File)/(kind file)/'
   ((test
     (((source Dune)
       (entry
