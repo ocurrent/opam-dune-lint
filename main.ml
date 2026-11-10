@@ -38,6 +38,8 @@ let to_opam ~index lib =
   | "threads" | "unix" | "str" | "compiler-libs"
   | "bigarray" | "dynlink" | "ocamldoc" | "stdlib"
   | "bytes" | "runtime_events" -> None          (* Distributed with OCaml *)
+  | "stdlib_stable" | "stdlib_upstream_compatible"
+  | "stdlib_alpha" | "stdlib_beta" -> None      (* Distributed with OxCaml *)
   | lib ->
     match Index.Owner.find_opt lib index with
     | Some pkg -> Some pkg
